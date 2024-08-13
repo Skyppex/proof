@@ -2,73 +2,68 @@ package analysis
 
 import (
 	"fmt"
+	"github.com/f1monkey/spellchecker"
+	"log"
 	"proof/lsp"
 	"strings"
 )
 
 type State struct {
-	Documents map[string]string
+	Spellchecker *spellchecker.Spellchecker
+	Documents    map[string]string
 }
 
-func NewState() State {
-	return State{Documents: map[string]string{}}
-}
-
-func (s *State) OpenDocument(uri, text string) {
-	s.Documents[uri] = text
-}
-
-func (s *State) UpdateDocument(uri, text string) {
-	s.Documents[uri] = text
-}
-
-func (s *State) Hover(id int, uri string, position lsp.Position) lsp.HoverResponse {
-	document := s.Documents[uri]
-
-	return lsp.HoverResponse{
-		Response: lsp.CreateResponse(id),
-		Result: lsp.HoverResult{
-			Contents: fmt.Sprintf("File: %s, Characters: %d", uri, len(document)),
-		},
+func NewState(sc *spellchecker.Spellchecker) State {
+	return State{
+		Spellchecker: sc,
+		Documents:    map[string]string{},
 	}
 }
 
-func (s *State) CodeAction(id int, uri string) lsp.CodeActionResponse {
-	text := s.Documents[uri]
-
-	actions := []lsp.CodeAction{}
+func getDiagnostics(text string, s *State, logger *log.Logger) []lsp.Diagnostic {
+	diagnostics := []lsp.Diagnostic{}
+	severity := lsp.Error
 
 	for row, line := range strings.Split(text, "\n") {
-		idx := strings.Index(line, "// ")
+		for column, word := range strings.Split(line, " ") {
+			logger.Printf("Word: %s", word)
 
-		if idx >= 0 {
-			todoChange := map[string][]lsp.TextEdit{}
-			todoChange[uri] = []lsp.TextEdit{
-				{
-					Range:   LineRange(row, idx, idx+2),
-					NewText: "// TODO: ",
-				},
+			if s.Spellchecker.IsCorrect(word) {
+				continue
 			}
 
-			actions = append(actions, lsp.CodeAction{
-				Title: "Comment TODO",
-				Edit:  &lsp.WorkspaceEdit{Changes: todoChange},
-			})
+			logger.Printf("Incorrect: %s", word)
 
-			noteChange := map[string][]lsp.TextEdit{}
-			noteChange[uri] = []lsp.TextEdit{
-				{
-					Range:   LineRange(row, idx, idx+2),
-					NewText: "// NOTE: ",
-				},
+			if word != "VSCode" {
+				continue
 			}
 
-			actions = append(actions, lsp.CodeAction{
-				Title: "Comment NOTE",
-				Edit:  &lsp.WorkspaceEdit{Changes: noteChange},
+			logger.Printf("Is VSCode: %s", word)
+
+			diagnostics = append(diagnostics, lsp.Diagnostic{
+				Range:    LineRange(row, column, column+len(word)),
+				Severity: &severity,
+				Source:   "proof",
+				Message:  fmt.Sprintf("Unknown word: %s", word),
 			})
 		}
 	}
+
+	return diagnostics
+}
+
+func (s *State) OpenDocument(uri string, text string, logger *log.Logger) []lsp.Diagnostic {
+	s.Documents[uri] = text
+	return getDiagnostics(text, s, logger)
+}
+
+func (s *State) UpdateDocument(uri string, text string, logger *log.Logger) []lsp.Diagnostic {
+	s.Documents[uri] = text
+	return getDiagnostics(text, s, logger)
+}
+
+func (s *State) CodeAction(id int, uri string) lsp.CodeActionResponse {
+	actions := []lsp.CodeAction{}
 
 	response := lsp.CodeActionResponse{
 		Response: lsp.CreateResponse(id),

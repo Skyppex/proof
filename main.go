@@ -3,21 +3,37 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"os"
 	"proof/analysis"
 	"proof/lsp"
 	"proof/rpc"
+
+	"github.com/f1monkey/spellchecker"
 )
 
 func main() {
-	logger := getLogger("D:/code/proof/log.txt")
+	args := os.Args
+	var log_file_path string = args[1]
+
+	logger := getLogger(log_file_path)
 	logger.Println("Starting proof")
 	scanner := bufio.NewScanner(os.Stdin)
 	scanner.Split(rpc.Split)
 
-	state := analysis.NewState()
+	sc, err := spellchecker.New(
+		"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890", // Allowed symbols
+		spellchecker.WithMaxErrors(2),
+		spellchecker.WithSplitter(bufio.ScanLines),
+	)
+
+	if err != nil {
+		panic(err)
+	}
+
+	state := analysis.NewState(sc)
 	writer := os.Stdout
 
 	for scanner.Scan() {
@@ -29,11 +45,11 @@ func main() {
 			continue
 		}
 
-		handleMessage(logger, writer, state, method, content)
+		handleMessage(logger, writer, &state, method, content)
 	}
 }
 
-func handleMessage(logger *log.Logger, writer io.Writer, state analysis.State, method string, content []byte) {
+func handleMessage(logger *log.Logger, writer io.Writer, state *analysis.State, method string, content []byte) {
 	logger.Printf("Received message with method '%s'", method)
 
 	switch method {
@@ -65,7 +81,11 @@ func handleMessage(logger *log.Logger, writer io.Writer, state analysis.State, m
 		logger.Printf("Opened: %s",
 			request.Params.TextDocument.URI)
 
-		state.OpenDocument(request.Params.TextDocument.URI, request.Params.TextDocument.Text)
+		diagnostics := state.OpenDocument(request.Params.TextDocument.URI, request.Params.TextDocument.Text, logger)
+		msg := lsp.NewPublishDiagnosticsNotification(request.Params.TextDocument.URI, diagnostics)
+		writeResponse(writer, msg)
+
+		logger.Print("didOpen Sent diagnostics")
 
 	case "textDocument/didChange":
 		var request lsp.DidChangeTextDocumentNotification
@@ -79,43 +99,26 @@ func handleMessage(logger *log.Logger, writer io.Writer, state analysis.State, m
 			request.Params.TextDocument.URI)
 
 		for _, change := range request.Params.ContentChanges {
-			state.UpdateDocument(request.Params.TextDocument.URI, change.Text)
+			diagnostics := state.UpdateDocument(request.Params.TextDocument.URI, change.Text, logger)
+			msg := lsp.NewPublishDiagnosticsNotification(request.Params.TextDocument.URI, diagnostics)
+			writeResponse(writer, msg)
+			logger.Print("didChange Sent diagnostics")
 		}
 
-	case "textDocument/hover":
-		var request lsp.HoverTextRequest
-
-		if err := json.Unmarshal(content, &request); err != nil {
-			logger.Printf("Can't parse method 'textDocument/hover' | %s", err)
-			return
-		}
-
-		logger.Printf("Hovered: %s",
-			request.Params.TextDocument.URI)
-
-		response := state.Hover(
-			request.ID,
-			request.Params.TextDocument.URI,
-			request.Params.Position)
-
-		writeResponse(writer, response)
-
-		logger.Print("Sent initialize response")
-
-	case "textDocument/codeAction":
-		var request lsp.CodeActionRequest
-
-		if err := json.Unmarshal(content, &request); err != nil {
-			logger.Printf("Can't parse method 'textDocument/codeAction' | %s", err)
-			return
-		}
-
-		logger.Printf("Code action: %s",
-			request.Params.TextDocument.URI)
-
-		response := state.CodeAction(request.ID, request.Params.TextDocument.URI)
-
-		writeResponse(writer, response)
+		// case "textDocument/codeAction":
+		// 	var request lsp.CodeActionRequest
+		//
+		// 	if err := json.Unmarshal(content, &request); err != nil {
+		// 		logger.Printf("Can't parse method 'textDocument/codeAction' | %s", err)
+		// 		return
+		// 	}
+		//
+		// 	logger.Printf("Code action: %s",
+		// 		request.Params.TextDocument.URI)
+		//
+		// 	response := state.CodeAction(request.ID, request.Params.TextDocument.URI)
+		//
+		// 	writeResponse(writer, response)
 	}
 }
 
@@ -123,7 +126,13 @@ func getLogger(filename string) *log.Logger {
 	logfile, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0666)
 
 	if err != nil {
-		panic("Bad file bro")
+		error_message, err := fmt.Printf("Bad file bro: %s", filename)
+
+		if err != nil {
+			panic(err)
+		} else {
+			panic(error_message)
+		}
 	}
 
 	return log.New(logfile, "[proof]", log.Ldate|log.Ltime|log.Lshortfile)
