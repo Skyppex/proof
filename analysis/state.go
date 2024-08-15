@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"log"
 	"proof/lsp"
-	"regexp"
 	"strings"
+	"unicode"
 
 	"github.com/f1monkey/spellchecker"
 )
+
+const NumberOfSuggestions = 5
+const suggestions = 10
 
 // state
 
@@ -26,19 +29,16 @@ func NewState(sc *spellchecker.Spellchecker) State {
 
 func getDiagnostics(text string, s *State, logger *log.Logger) []lsp.Diagnostic {
 	diagnostics := []lsp.Diagnostic{}
-	return diagnostics // This is just to make the noise go away
+	// return diagnostics // This is just to make the noise go away
 
 	severity := lsp.Hint
-
-	regex := regexp.MustCompile("[_a-zA-Z]+")
 
 	for row, line := range strings.Split(text, "\n") {
 		if strings.Trim(line, "\t \r\n") == "" {
 			continue
 		}
 
-		line_diagnostics := checkRegexMatches(row, line, s, logger, severity, regex)
-		// line_diagnostics := checkSplitWords(row, line, s, logger, severity)
+		line_diagnostics := checkSplitWordsWithStruct(row, line, s, logger, severity)
 
 		diagnostics = append(diagnostics, line_diagnostics...)
 
@@ -47,89 +47,78 @@ func getDiagnostics(text string, s *State, logger *log.Logger) []lsp.Diagnostic 
 	return diagnostics
 }
 
-func checkRegexMatches(row int, line string, s *State, logger *log.Logger, severity lsp.DiagnosticSeverity, regex *regexp.Regexp) []lsp.Diagnostic {
+func checkSplitWordsWithStruct(row int, line string, s *State, logger *log.Logger, severity lsp.DiagnosticSeverity) []lsp.Diagnostic {
 	diagnostics := []lsp.Diagnostic{}
 
-	matches := regex.FindAllStringIndex(line, -1)
+	words := splitIntoWords(row, 0, line)
 
-	for _, match := range matches {
-		start, end := match[0], match[1]
-
-		word := strings.Trim(line[start:end], "\t \r\n")
-
-		if word == "" {
-			continue
-		}
-
-		word_lower := strings.ToLower(word)
-
-		logger.Printf("Word: %s is at index %d", word, start)
+	for _, word := range words {
+		word_lower := strings.ToLower(word.Text)
 
 		if s.Spellchecker.IsCorrect(word_lower) {
 			continue
 		}
 
-		logger.Printf("Incorrect: %s", word)
-
-		// if word != "VSCode" {
-		// 	continue
-		// }
-		//
-		// logger.Printf("Is VSCode: %s", word)
+		if strings.HasSuffix(word_lower, "s") {
+			word_lower = word_lower[:len(word_lower)-1]
+			if s.Spellchecker.IsCorrect(word_lower) {
+				continue
+			}
+		}
 
 		diagnostics = append(diagnostics, lsp.Diagnostic{
-			Range:    LineRange(row, start, end),
+			Range:    LineRange(word.Row, word.Start, word.End),
 			Severity: &severity,
 			Source:   "proof",
-			Message:  fmt.Sprintf("Typo in word: %s", word),
+			Message:  fmt.Sprintf("Typo in word: %s", word.Text),
 		})
 	}
 
 	return diagnostics
 }
 
-func checkSplitWords(row int, line string, s *State, logger *log.Logger, severity lsp.DiagnosticSeverity) []lsp.Diagnostic {
-	diagnostics := []lsp.Diagnostic{}
-	column := 0
+type Word struct {
+	Text  string
+	Row   int
+	Start int
+	End   int
+}
 
-	for _, word := range strings.Split(line, " ") {
-		index := strings.Index(line[column:], word) + column
+func splitIntoWords(row int, offset_from_start int, line string) []Word {
+	words := []Word{}
+	runes := []rune(line)
 
-		logger.Printf("Row: %d, Col: %d, Line: %s", row, column, line)
-		word := strings.Trim(word, "\t \r\n")
+	start := 0
+	current_word := []rune{}
 
-		if word == "" {
-			column = index + len(word) + 1
-			continue
+	for i, r := range runes {
+		switch {
+		case unicode.IsUpper(r):
+			if len(current_word) > 0 {
+				words = append(words, Word{Text: string(current_word), Row: row, Start: start + offset_from_start, End: i + offset_from_start})
+			}
+
+			current_word = []rune{r}
+			start = i
+
+		case unicode.IsLower(r):
+			current_word = append(current_word, r)
+
+		default:
+			if len(current_word) > 0 {
+				words = append(words, Word{Text: string(current_word), Row: row, Start: start + offset_from_start, End: i + offset_from_start})
+			}
+
+			current_word = []rune{}
+			start = i + 1
 		}
-
-		logger.Printf("Word: %s is at index %d", word, column)
-
-		if s.Spellchecker.IsCorrect(word) {
-			column = index + len(word) + 1
-			continue
-		}
-
-		logger.Printf("Incorrect: %s", word)
-
-		if word != "VSCode" {
-			column = index + len(word) + 1
-			continue
-		}
-
-		logger.Printf("Is VSCode: %s", word)
-
-		column = index + len(word) + 1
-
-		diagnostics = append(diagnostics, lsp.Diagnostic{
-			Range:    LineRange(row, column, column+len(word)),
-			Severity: &severity,
-			Source:   "proof",
-			Message:  fmt.Sprintf("Typo in word: %s", word),
-		})
 	}
 
-	return diagnostics
+	if len(current_word) > 0 {
+		words = append(words, Word{Text: string(current_word), Row: row, Start: start + offset_from_start, End: len(runes) + offset_from_start})
+	}
+
+	return words
 }
 
 func (s *State) OpenDocument(uri string, text string, logger *log.Logger) []lsp.Diagnostic {
@@ -142,15 +131,94 @@ func (s *State) UpdateDocument(uri string, text string, logger *log.Logger) []ls
 	return getDiagnostics(text, s, logger)
 }
 
-func (s *State) CodeAction(id int, uri string) lsp.CodeActionResponse {
+func (s *State) CodeAction(request lsp.CodeActionRequest, uri string, logger *log.Logger) lsp.CodeActionResponse {
+	params := request.Params
+	rng := params.Range
+
+	if rng.Start.Line != rng.End.Line {
+		return lsp.CodeActionResponse{
+			Response: lsp.CreateResponse(request.ID),
+			Result:   []lsp.CodeAction{},
+		}
+	}
+
 	actions := []lsp.CodeAction{}
+	text := s.Documents[uri]
+	lines := strings.Split(text, "\n")
+	line := lines[rng.Start.Line]
+	full_range := growRange(line, rng)
+
+	relevant_text := line[full_range.Start.Character : full_range.End.Character+1]
+
+	words := splitIntoWords(rng.Start.Line, full_range.Start.Character, relevant_text)
+
+	for _, word := range words {
+		if s.Spellchecker.IsCorrect(strings.ToLower(word.Text)) {
+			continue
+		}
+
+		if strings.HasSuffix(word.Text, "s") {
+			if s.Spellchecker.IsCorrect(strings.ToLower(word.Text[:len(word.Text)-1])) {
+				continue
+			}
+		}
+
+		suggestions, err := s.Spellchecker.Suggest(strings.ToLower(word.Text), NumberOfSuggestions)
+
+		if err != nil {
+			logger.Print("Failed to get suggestions:")
+			continue
+		}
+
+		for _, suggestion := range suggestions {
+			action := lsp.CodeAction{
+				Title: fmt.Sprintf("Replace with '%s'", suggestion),
+				Edit: &lsp.WorkspaceEdit{
+					Changes: map[string][]lsp.TextEdit{
+						uri: {
+							{
+								Range:   LineRange(word.Row, word.Start, word.End),
+								NewText: suggestion,
+							},
+						},
+					},
+				},
+			}
+
+			actions = append(actions, action)
+		}
+
+	}
 
 	response := lsp.CodeActionResponse{
-		Response: lsp.CreateResponse(id),
+		Response: lsp.CreateResponse(request.ID),
 		Result:   actions,
 	}
 
 	return response
+}
+
+func growRange(text string, rng lsp.Range) lsp.Range {
+	start := rng.Start
+	end := rng.End
+
+	for start.Character > 0 {
+		if !unicode.IsLetter(rune(text[start.Character-1])) {
+			break
+		}
+
+		start.Character--
+	}
+
+	for end.Character < len(text) {
+		if !unicode.IsLetter(rune(text[end.Character+1])) {
+			break
+		}
+
+		end.Character++
+	}
+
+	return lsp.Range{Start: start, End: end}
 }
 
 func LineRange(row, start, end int) lsp.Range {

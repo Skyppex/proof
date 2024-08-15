@@ -45,7 +45,7 @@ func main() {
 	}
 
 	defer response.Body.Close()
-	reader := strings.NewReader(analysis.Abbreviations)
+	reader := strings.NewReader(analysis.ExtraWords)
 
 	sc.AddFrom(response.Body)
 	sc.AddFrom(reader)
@@ -91,7 +91,7 @@ func handleMessage(logger *log.Logger, writer io.Writer, state *analysis.State, 
 		var request lsp.DidOpenTextDocumentNotification
 
 		if err := json.Unmarshal(content, &request); err != nil {
-			logger.Printf("Can't parse method 'textDocumet/didOpen' | %s", err)
+			logger.Printf("Can't parse method 'textDocument/didOpen' | %s", err)
 			return
 		}
 
@@ -112,7 +112,7 @@ func handleMessage(logger *log.Logger, writer io.Writer, state *analysis.State, 
 		var request lsp.DidChangeTextDocumentNotification
 
 		if err := json.Unmarshal(content, &request); err != nil {
-			logger.Printf("Can't parse method 'textDocumet/didChange' | %s", err)
+			logger.Printf("Can't parse method 'textDocument/didChange' | %s", err)
 			return
 		}
 
@@ -130,20 +130,23 @@ func handleMessage(logger *log.Logger, writer io.Writer, state *analysis.State, 
 			}
 		}
 
-		// case "textDocument/codeAction":
-		// 	var request lsp.CodeActionRequest
-		//
-		// 	if err := json.Unmarshal(content, &request); err != nil {
-		// 		logger.Printf("Can't parse method 'textDocument/codeAction' | %s", err)
-		// 		return
-		// 	}
-		//
-		// 	logger.Printf("Code action: %s",
-		// 		request.Params.TextDocument.URI)
-		//
-		// 	response := state.CodeAction(request.ID, request.Params.TextDocument.URI)
-		//
-		// 	writeResponse(writer, response)
+	case "textDocument/codeAction":
+		logger.Print("Received Code Action Request")
+		var request lsp.CodeActionRequest
+
+		if err := json.Unmarshal(content, &request); err != nil {
+			logger.Printf("Can't parse method 'textDocument/codeAction' | %s", err)
+			return
+		}
+
+		logger.Printf("Code action: %s",
+			request.Params.TextDocument.URI)
+
+		response := state.CodeAction(request, request.Params.TextDocument.URI, logger)
+
+		logger.Printf("Code action response: %v", response)
+
+		writeResponse(writer, response)
 	}
 }
 
