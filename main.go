@@ -66,7 +66,12 @@ func main() {
 	}
 }
 
-func handleMessage(logger *log.Logger, writer io.Writer, state *analysis.State, method string, content []byte) {
+func handleMessage(
+	logger *log.Logger,
+	writer io.Writer,
+	state *analysis.State,
+	method string,
+	content []byte) {
 	logger.Printf("Received message with method '%s'", method)
 
 	switch method {

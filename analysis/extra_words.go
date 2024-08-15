@@ -69,7 +69,6 @@ dbg
 dec
 decl
 def
-defenition
 deg
 del
 dep
@@ -152,6 +151,7 @@ loc
 lon
 lsp
 lt
+lua
 lvl
 mat
 max
@@ -199,6 +199,7 @@ perf
 pic
 pid
 pkg
+plugin
 pol
 pos
 posix

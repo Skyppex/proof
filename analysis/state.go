@@ -11,9 +11,6 @@ import (
 )
 
 const NumberOfSuggestions = 5
-const suggestions = 10
-
-// state
 
 type State struct {
 	Spellchecker *spellchecker.Spellchecker
@@ -29,8 +26,6 @@ func NewState(sc *spellchecker.Spellchecker) State {
 
 func getDiagnostics(text string, s *State, logger *log.Logger) []lsp.Diagnostic {
 	diagnostics := []lsp.Diagnostic{}
-	// return diagnostics // This is just to make the noise go away
-
 	severity := lsp.Hint
 
 	for row, line := range strings.Split(text, "\n") {
@@ -47,7 +42,7 @@ func getDiagnostics(text string, s *State, logger *log.Logger) []lsp.Diagnostic 
 	return diagnostics
 }
 
-func checkSplitWordsWithStruct(row int, line string, s *State, logger *log.Logger, severity lsp.DiagnosticSeverity) []lsp.Diagnostic {
+func checkSplitWordsWithStruct(row int, line string, s *State, _ *log.Logger, severity lsp.DiagnosticSeverity) []lsp.Diagnostic {
 	diagnostics := []lsp.Diagnostic{}
 
 	words := splitIntoWords(row, 0, line)
@@ -120,6 +115,8 @@ func splitIntoWords(row int, offset_from_start int, line string) []Word {
 
 	return words
 }
+
+// states
 
 func (s *State) OpenDocument(uri string, text string, logger *log.Logger) []lsp.Diagnostic {
 	s.Documents[uri] = text
