@@ -6,13 +6,17 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"proof/analysis"
 	"proof/lsp"
 	"proof/rpc"
+	"strings"
 
 	"github.com/f1monkey/spellchecker"
 )
+
+const word_list = "https://raw.githubusercontent.com/makifdb/spellcheck/main/words.txt"
 
 func main() {
 	args := os.Args
@@ -24,7 +28,7 @@ func main() {
 	scanner.Split(rpc.Split)
 
 	sc, err := spellchecker.New(
-		"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890", // Allowed symbols
+		spellchecker.DefaultAlphabet, // Allowed symbols
 		spellchecker.WithMaxErrors(2),
 		spellchecker.WithSplitter(bufio.ScanLines),
 	)
@@ -32,6 +36,19 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	response, err := http.Get(word_list)
+
+	if err != nil {
+		logger.Fatal("Word list not found")
+		return
+	}
+
+	defer response.Body.Close()
+	reader := strings.NewReader(analysis.Abbreviations)
+
+	sc.AddFrom(response.Body)
+	sc.AddFrom(reader)
 
 	state := analysis.NewState(sc)
 	writer := os.Stdout
@@ -82,10 +99,14 @@ func handleMessage(logger *log.Logger, writer io.Writer, state *analysis.State, 
 			request.Params.TextDocument.URI)
 
 		diagnostics := state.OpenDocument(request.Params.TextDocument.URI, request.Params.TextDocument.Text, logger)
-		msg := lsp.NewPublishDiagnosticsNotification(request.Params.TextDocument.URI, diagnostics)
-		writeResponse(writer, msg)
+		logger.Printf("Diagnostics: %v", diagnostics)
 
-		logger.Print("didOpen Sent diagnostics")
+		if len(diagnostics) > 0 {
+			msg := lsp.NewPublishDiagnosticsNotification(request.Params.TextDocument.URI, diagnostics)
+			writeResponse(writer, msg)
+
+			logger.Print("didOpen Sent diagnostics")
+		}
 
 	case "textDocument/didChange":
 		var request lsp.DidChangeTextDocumentNotification
@@ -100,9 +121,13 @@ func handleMessage(logger *log.Logger, writer io.Writer, state *analysis.State, 
 
 		for _, change := range request.Params.ContentChanges {
 			diagnostics := state.UpdateDocument(request.Params.TextDocument.URI, change.Text, logger)
-			msg := lsp.NewPublishDiagnosticsNotification(request.Params.TextDocument.URI, diagnostics)
-			writeResponse(writer, msg)
-			logger.Print("didChange Sent diagnostics")
+			logger.Printf("Diagnostics: %v", diagnostics)
+
+			if len(diagnostics) > 0 {
+				msg := lsp.NewPublishDiagnosticsNotification(request.Params.TextDocument.URI, diagnostics)
+				writeResponse(writer, msg)
+				logger.Print("didChange Sent diagnostics")
+			}
 		}
 
 		// case "textDocument/codeAction":
