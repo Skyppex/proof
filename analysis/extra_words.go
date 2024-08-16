@@ -87,6 +87,7 @@ dotfile
 dotnet
 drv
 dt
+dto
 dyn
 elm
 en
