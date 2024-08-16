@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net/http"
 	"os"
 	"proof/analysis"
 	"proof/lsp"
@@ -15,8 +14,6 @@ import (
 
 	"github.com/f1monkey/spellchecker"
 )
-
-const word_list = "https://raw.githubusercontent.com/makifdb/spellcheck/main/words.txt"
 
 func main() {
 	args := os.Args
@@ -37,17 +34,8 @@ func main() {
 		panic(err)
 	}
 
-	response, err := http.Get(word_list)
-
-	if err != nil {
-		logger.Fatal("Word list not found")
-		return
-	}
-
-	defer response.Body.Close()
-	reader := strings.NewReader(analysis.ExtraWords)
-
-	sc.AddFrom(response.Body)
+	word_list := analysis.WordList + analysis.ExtraWords
+	reader := strings.NewReader(word_list)
 	sc.AddFrom(reader)
 
 	state := analysis.NewState(sc)

@@ -33,12 +33,15 @@ bool
 buf
 buff
 bufio
+bufnr
 calc
 cfg
 char
+clangd
 clr
 cmd
 cmp
+codebase
 col
 coll
 com
@@ -58,9 +61,13 @@ cos
 cosec
 cot
 cpp
+cs
 csharp
+csharpls
+cshtml
 csproj
 css
+csx
 ctg
 ctrl
 ctx
@@ -68,6 +75,7 @@ db
 dbg
 dec
 decl
+decompilation
 def
 deg
 del
@@ -89,7 +97,9 @@ drv
 dt
 dto
 dyn
+elif
 elm
+elseif
 en
 enum
 env
@@ -103,6 +113,7 @@ ext
 fac
 fc
 fd
+filetype
 fmt
 fn
 fp
@@ -143,7 +154,9 @@ iter
 jq
 js
 json
+jwt
 key
+keymap
 km
 lang
 len
@@ -153,6 +166,8 @@ lon
 lsp
 lt
 lua
+luals
+luasnip
 lvl
 mat
 max
@@ -160,6 +175,7 @@ mcu
 mei
 mem
 meta
+metadata
 microservice
 microsoft
 mid
@@ -180,6 +196,9 @@ namespace
 nav
 neovim
 net
+netcore
+netcoreapp
+netframework
 nin
 nl
 nosql
@@ -202,11 +221,13 @@ pid
 pkg
 plugin
 pol
+popup
 pos
 posix
 powershell
 pred
 pref
+prettierd
 prev
 pri
 printf
@@ -239,8 +260,12 @@ rev
 rm
 rnd
 rng
+roslyn
 rpc
+rs
+ruleset
 rv
+sdk
 sec
 sel
 sem
@@ -267,6 +292,7 @@ stderr
 stdin
 stdio
 stdout
+stdpath
 stmt
 str
 sub
@@ -277,6 +303,7 @@ sw
 symlink
 sync
 tan
+tbl
 td
 temp
 th
@@ -286,6 +313,7 @@ tmr
 toml
 tota
 ts
+tsserver
 txt
 typeof
 uint
@@ -304,6 +332,7 @@ vec
 ver
 vscode
 whoami
+wiki
 win
 wiz
 worktree
