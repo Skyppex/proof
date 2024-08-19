@@ -1,8 +1,11 @@
 package analysis
 
 import (
+	"bufio"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"proof/lsp"
 	"strings"
 	"unicode"
@@ -10,14 +13,14 @@ import (
 	"github.com/f1monkey/spellchecker"
 )
 
-const NumberOfSuggestions = 5
-
 type State struct {
 	Spellchecker           *spellchecker.Spellchecker
+	DictionaryPath         string
 	AllowImplicitPlurals   bool
 	SpellCheckNodes        map[string][]string
 	DefaultSpellCheckNodes []string
 	Documents              map[string]documentData
+	MaxSuggestions         int
 }
 
 type documentData struct {
@@ -28,12 +31,16 @@ type documentData struct {
 }
 
 func NewState(sc *spellchecker.Spellchecker) State {
+	const DefaultMaxSuggestions = 5
+
 	return State{
 		Spellchecker:           sc,
+		DictionaryPath:         "",
 		AllowImplicitPlurals:   false,
 		SpellCheckNodes:        map[string][]string{},
 		DefaultSpellCheckNodes: nil,
 		Documents:              map[string]documentData{},
+		MaxSuggestions:         DefaultMaxSuggestions,
 	}
 }
 
@@ -51,12 +58,90 @@ func (s *State) UpdateSettings(settings lsp.Settings, logger *log.Logger) {
 	s.SpellCheckNodes = settings.Proof.SpellCheckNodes
 	s.DefaultSpellCheckNodes = _default
 	s.AllowImplicitPlurals = settings.Proof.AllowImplicitPlurals
+	s.MaxSuggestions = settings.Proof.MaxSuggestions
+	s.DictionaryPath = settings.Proof.DictionaryPath
 
 	logger.Printf(
-		"Updated Settings | DefaultSpellCheck: %v | SpellCheck: %v | AllowImplicitPlurals: %v",
+		"Updated Settings "+
+			"| DefaultSpellCheck: %v "+
+			"| SpellCheck: %v "+
+			"| AllowImplicitPlurals: %v "+
+			"| DictionaryPath: %s "+
+			"| MaxSuggestions: %d",
 		s.DefaultSpellCheckNodes,
 		s.SpellCheckNodes,
-		s.AllowImplicitPlurals)
+		s.AllowImplicitPlurals,
+		s.DictionaryPath,
+		s.MaxSuggestions)
+
+	if s.DictionaryPath != "" {
+		if err := ensureDir(s.DictionaryPath); err != nil {
+			logger.Printf("Failed to create dictionary directory: %s", err)
+		}
+
+		file, err := os.Open(s.DictionaryPath)
+
+		if err != nil {
+			logger.Printf("Failed to open dictionary file: %s", err)
+			return
+		}
+
+		defer file.Close()
+
+		reader := bufio.NewReader(file)
+		s.Spellchecker.AddFrom(reader)
+	}
+}
+
+func (s *State) ExecuteCommand(command string, arguments []string, logger *log.Logger) (string, []lsp.Diagnostic) {
+	switch command {
+	case "proof.add_to_dictionary":
+		if len(arguments) < 2 {
+			logger.Print("No arguments provided for 'proof.add_to_dictionary'")
+			return "", []lsp.Diagnostic{}
+		}
+
+		uri := arguments[0]
+		word := arguments[1]
+		s.Spellchecker.Add(word)
+
+		if s.DictionaryPath != "" {
+			if err := ensureDir(s.DictionaryPath); err != nil {
+				logger.Printf("Failed to create dictionary directory: %s", err)
+				return "", []lsp.Diagnostic{}
+			}
+
+			file, err := os.OpenFile(s.DictionaryPath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+
+			if err != nil {
+				logger.Printf("Failed to open dictionary file: %s", err)
+				return "", []lsp.Diagnostic{}
+			}
+
+			defer file.Close()
+
+			written_bytes, err := file.WriteString(word + "\n")
+
+			if err != nil {
+				logger.Printf("Failed to write to dictionary file: %s", err)
+				return "", []lsp.Diagnostic{}
+			}
+
+			bytes := []byte(word + "\n")
+
+			if written_bytes != len(bytes) {
+				logger.Printf("Failed to write all bytes to dictionary file. written: %d | expected %d", written_bytes, len(bytes))
+				return "", []lsp.Diagnostic{}
+			}
+		}
+
+		logger.Printf("Added '%s' to dictionary", word)
+		return uri, getDiagnosticsForFile(uri, s, logger)
+
+	default:
+		logger.Printf("Unknown command: %s", command)
+		return "", []lsp.Diagnostic{}
+	}
 }
 
 // Documents
@@ -105,17 +190,47 @@ func (s *State) CodeAction(request lsp.CodeActionRequest, uri string, logger *lo
 			continue
 		}
 
-		if strings.HasSuffix(word.Text, "s") {
+		has_trailing_s := strings.HasSuffix(word.Text, "s")
+
+		if has_trailing_s {
 			if s.Spellchecker.IsCorrect(strings.ToLower(word.Text[:len(word.Text)-1])) {
 				continue
 			}
 		}
 
-		suggestions, err := s.Spellchecker.Suggest(strings.ToLower(word.Text), NumberOfSuggestions)
+		suggestions, err := s.Spellchecker.Suggest(word.Text, s.MaxSuggestions)
 
 		if err != nil {
 			logger.Print("Failed to get suggestions:")
 			continue
+		}
+
+		if s.DictionaryPath != "" {
+			if has_trailing_s && s.AllowImplicitPlurals {
+				actions = append(actions, lsp.CodeAction{
+					Title: "Add to dictionary",
+					Command: &lsp.Command{
+						Title:   "Add to dictionary",
+						Command: "proof.add_to_dictionary",
+						Arguments: []string{
+							uri,
+							word.Text[:len(word.Text)-1],
+						},
+					},
+				})
+			} else {
+				actions = append(actions, lsp.CodeAction{
+					Title: "Add to dictionary",
+					Command: &lsp.Command{
+						Title:   "Add to dictionary",
+						Command: "proof.add_to_dictionary",
+						Arguments: []string{
+							uri,
+							word.Text,
+						},
+					},
+				})
+			}
 		}
 
 		for _, suggestion := range suggestions {
@@ -151,6 +266,11 @@ func lineRange(row, start, end int) lsp.Range {
 		Start: lsp.Position{Line: row, Character: start},
 		End:   lsp.Position{Line: row, Character: end},
 	}
+}
+
+func getDiagnosticsForFile(uri string, s *State, logger *log.Logger) []lsp.Diagnostic {
+	document := s.Documents[uri]
+	return getDiagnostics(document, s, logger)
 }
 
 func getDiagnostics(document documentData, s *State, logger *log.Logger) []lsp.Diagnostic {
@@ -276,6 +396,16 @@ func createDocumentData(document lsp.TextDocumentItem) documentData {
 	languageID := document.LanguageID
 
 	last_index := strings.LastIndex(uri, ".")
+
+	if last_index == -1 {
+		return documentData{
+			URI:        uri,
+			Text:       text,
+			LanguageID: languageID,
+			Extension:  "",
+		}
+	}
+
 	extension := uri[last_index:]
 
 	return documentData{
@@ -293,4 +423,9 @@ func updateDocumentData(document documentData, identifier lsp.VersionedTextDocum
 		LanguageID: document.LanguageID,
 		Extension:  document.Extension,
 	}
+}
+
+func ensureDir(filePath string) error {
+	dir := filepath.Dir(filePath)
+	return os.MkdirAll(dir, 0755)
 }

@@ -93,8 +93,27 @@ func handleMessage(
 
 		state.UpdateSettings(request.Params.Settings, logger)
 
+	case "workspace/executeCommand":
+		var request lsp.ExecuteCommandRequest
+
+		if err := json.Unmarshal(content, &request); err != nil {
+			logger.Printf("Can't parse method 'workspace/executeCommand' | %s", err)
+			return
+		}
+
+		logger.Printf("Execute command: %s",
+			request.Params.Command)
+
+		uri, diagnostics := state.ExecuteCommand(request.Params.Command, request.Params.Arguments, logger)
+
+		if len(diagnostics) > 0 && uri != "" {
+			msg := lsp.NewPublishDiagnosticsNotification(uri, diagnostics)
+			writeResponse(writer, msg)
+
+			logger.Print("executeCommand Sent diagnostics")
+		}
+
 	case "textDocument/didOpen":
-		logger.Printf("Raw DidOpen: %v")
 		var request lsp.DidOpenTextDocumentNotification
 
 		if err := json.Unmarshal(content, &request); err != nil {
@@ -105,10 +124,7 @@ func handleMessage(
 		logger.Printf("Opened: %s",
 			request.Params.TextDocument.URI)
 
-		logger.Printf("Request: %v", request)
-
 		diagnostics := state.OpenDocument(request.Params.TextDocument, logger)
-		logger.Printf("Diagnostics: %v", diagnostics)
 
 		if len(diagnostics) > 0 {
 			msg := lsp.NewPublishDiagnosticsNotification(request.Params.TextDocument.URI, diagnostics)
@@ -130,7 +146,6 @@ func handleMessage(
 
 		for _, change := range request.Params.ContentChanges {
 			diagnostics := state.UpdateDocument(request.Params.TextDocument, change.Text, logger)
-			logger.Printf("Diagnostics: %v", diagnostics)
 
 			if len(diagnostics) > 0 {
 				msg := lsp.NewPublishDiagnosticsNotification(request.Params.TextDocument.URI, diagnostics)

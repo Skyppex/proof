@@ -26,10 +26,11 @@ type InitializeResult struct {
 }
 
 type ServerCapabilities struct {
-	TextDocumentSync   int               `json:"textDocumentSync"`
-	HoverProvider      bool              `json:"hoverProvider"`
-	CodeActionProvider bool              `json:"codeActionProvider"`
-	DiagnosticProvider DiagnosticOptions `json:"diagnosticProvider"`
+	TextDocumentSync       int                   `json:"textDocumentSync"`
+	HoverProvider          bool                  `json:"hoverProvider"`
+	CodeActionProvider     bool                  `json:"codeActionProvider"`
+	DiagnosticProvider     DiagnosticOptions     `json:"diagnosticProvider"`
+	ExecuteCommandProvider ExecuteCommandOptions `json:"executeCommandProvider"`
 }
 
 type ServerInfo struct {
@@ -41,6 +42,11 @@ type DiagnosticOptions struct {
 	Identifier            string `json:"identifier"`
 	InterFileDependencies bool   `json:"interFileDependencies"`
 	WorkspaceDiagnostics  bool   `json:"workspaceDiagnostics"`
+}
+
+type ExecuteCommandOptions struct {
+	WorkDoneProgressOptions
+	Commands []string `json:"commands"`
 }
 
 func NewInitializeResponse(id int) InitializerResponse {
@@ -55,6 +61,9 @@ func NewInitializeResponse(id int) InitializerResponse {
 					Identifier:            "proof",
 					InterFileDependencies: false,
 					WorkspaceDiagnostics:  false,
+				},
+				ExecuteCommandProvider: ExecuteCommandOptions{
+					Commands: []string{"proof.add_to_dictionary"},
 				},
 			},
 			ServerInfo: &ServerInfo{

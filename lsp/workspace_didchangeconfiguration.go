@@ -14,6 +14,8 @@ type Settings struct {
 }
 
 type ProofSettings struct {
+	DictionaryPath       string              `json:"dictionaryPath"`
 	AllowImplicitPlurals bool                `json:"allowImplicitPlurals"`
+	MaxSuggestions       int                 `json:"maxSuggestions"`
 	SpellCheckNodes      map[string][]string `json:"spellCheckNodes"`
 }

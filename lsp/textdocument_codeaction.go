@@ -25,7 +25,7 @@ type CodeAction struct {
 }
 
 type Command struct {
-	Title     string        `json:"title"`
-	Command   string        `json:"command"`
-	Arguments []interface{} `json:"arguments,omitempty"`
+	Title     string   `json:"title"`
+	Command   string   `json:"command"`
+	Arguments []string `json:"arguments,omitempty"`
 }
