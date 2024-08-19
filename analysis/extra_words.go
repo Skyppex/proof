@@ -330,6 +330,7 @@ val
 var
 vec
 ver
+versioned
 vscode
 whoami
 wiki

@@ -1,12 +1,12 @@
 # Roadmap
 
 - [ ] Spell-checking single words in English
-    - [ ] Single words separated by spaces
-    - [ ] Words should be separated by casing
-        - [ ] PascalCase
-        - [ ] camelCase
-        - [ ] snake_case or SCREAMING_SNAKE_CASE
-        - [ ] kebab-case, KEBAB-CASE or Train-Case
+    - [x] Single words separated by spaces
+    - [x] Words should be separated by casing
+        - [x] PascalCase
+        - [x] camelCase
+        - [x] snake_case or SCREAMING_SNAKE_CASE
+        - [x] kebab-case, KEBAB-CASE or Train-Case
     - [ ] Add treesitter support
         - [ ] Allow user to configure which nodes should be spell-checked for
             each language

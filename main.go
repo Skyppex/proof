@@ -43,6 +43,7 @@ func main() {
 
 	for scanner.Scan() {
 		bytes := scanner.Bytes()
+
 		method, content, err := rpc.DecodeMessage(bytes)
 
 		if err != nil {
@@ -60,7 +61,6 @@ func handleMessage(
 	state *analysis.State,
 	method string,
 	content []byte) {
-	logger.Printf("Received message with method '%s'", method)
 
 	switch method {
 	case "initialize":
@@ -80,7 +80,21 @@ func handleMessage(
 
 		logger.Print("Sent initialize response")
 
+	case "workspace/didChangeConfiguration":
+		var request lsp.DidChangeConfigurationRequest
+
+		if err := json.Unmarshal(content, &request); err != nil {
+			logger.Printf("Can't parse method 'workspace/didChangeConfiguration' | %s", err)
+			return
+		}
+
+		logger.Printf("Configuration changed: %v",
+			request.Params.Settings)
+
+		state.UpdateSettings(request.Params.Settings, logger)
+
 	case "textDocument/didOpen":
+		logger.Printf("Raw DidOpen: %v")
 		var request lsp.DidOpenTextDocumentNotification
 
 		if err := json.Unmarshal(content, &request); err != nil {
@@ -91,7 +105,9 @@ func handleMessage(
 		logger.Printf("Opened: %s",
 			request.Params.TextDocument.URI)
 
-		diagnostics := state.OpenDocument(request.Params.TextDocument.URI, request.Params.TextDocument.Text, logger)
+		logger.Printf("Request: %v", request)
+
+		diagnostics := state.OpenDocument(request.Params.TextDocument, logger)
 		logger.Printf("Diagnostics: %v", diagnostics)
 
 		if len(diagnostics) > 0 {
@@ -113,7 +129,7 @@ func handleMessage(
 			request.Params.TextDocument.URI)
 
 		for _, change := range request.Params.ContentChanges {
-			diagnostics := state.UpdateDocument(request.Params.TextDocument.URI, change.Text, logger)
+			diagnostics := state.UpdateDocument(request.Params.TextDocument, change.Text, logger)
 			logger.Printf("Diagnostics: %v", diagnostics)
 
 			if len(diagnostics) > 0 {
