@@ -11,10 +11,12 @@ import (
 	"unicode"
 
 	"github.com/f1monkey/spellchecker"
+	sitter "github.com/smacker/go-tree-sitter"
 )
 
 type State struct {
 	Spellchecker           *spellchecker.Spellchecker
+	Parser                 *sitter.Parser
 	DictionaryPath         string
 	AllowImplicitPlurals   bool
 	SpellCheckNodes        map[string][]string
@@ -102,7 +104,8 @@ func (s *State) ExecuteCommand(command string, arguments []string, logger *log.L
 		}
 
 		uri := arguments[0]
-		word := arguments[1]
+		word := strings.ToLower(arguments[1])
+
 		s.Spellchecker.Add(word)
 
 		if s.DictionaryPath != "" {
@@ -198,12 +201,7 @@ func (s *State) CodeAction(request lsp.CodeActionRequest, uri string, logger *lo
 			}
 		}
 
-		suggestions, err := s.Spellchecker.Suggest(word.Text, s.MaxSuggestions)
-
-		if err != nil {
-			logger.Print("Failed to get suggestions:")
-			continue
-		}
+		suggestions, suggestions_err := s.Spellchecker.Suggest(word.Text, s.MaxSuggestions)
 
 		if s.DictionaryPath != "" {
 			if has_trailing_s && s.AllowImplicitPlurals {
@@ -231,6 +229,10 @@ func (s *State) CodeAction(request lsp.CodeActionRequest, uri string, logger *lo
 					},
 				})
 			}
+		}
+
+		if suggestions_err != nil {
+			break
 		}
 
 		for _, suggestion := range suggestions {
