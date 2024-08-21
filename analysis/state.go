@@ -177,6 +177,8 @@ func (s *State) CodeAction(request lsp.CodeActionRequest, uri string, logger *lo
 		}
 	}
 
+	// VehicleIDUsingUUID
+
 	actions := []lsp.CodeAction{}
 	document := s.Documents[uri]
 	text := document.Text
@@ -206,7 +208,7 @@ func (s *State) CodeAction(request lsp.CodeActionRequest, uri string, logger *lo
 		if s.DictionaryPath != "" {
 			if has_trailing_s && s.AllowImplicitPlurals {
 				actions = append(actions, lsp.CodeAction{
-					Title: "Add to dictionary",
+					Title: fmt.Sprintf("Add '%s' to dictionary", word.Text),
 					Command: &lsp.Command{
 						Title:   "Add to dictionary",
 						Command: "proof.add_to_dictionary",
@@ -218,7 +220,7 @@ func (s *State) CodeAction(request lsp.CodeActionRequest, uri string, logger *lo
 				})
 			} else {
 				actions = append(actions, lsp.CodeAction{
-					Title: "Add to dictionary",
+					Title: fmt.Sprintf("Add '%s' to dictionary", word.Text),
 					Command: &lsp.Command{
 						Title:   "Add to dictionary",
 						Command: "proof.add_to_dictionary",
@@ -338,19 +340,47 @@ func splitIntoWords(row int, offset_from_start int, line string) []Word {
 
 	start := 0
 	current_word := []rune{}
+	prev_rune := rune(0)
 
 	for i, r := range runes {
 		switch {
 		case unicode.IsUpper(r):
-			if len(current_word) > 0 {
-				words = append(words, Word{Text: string(current_word), Row: row, Start: start + offset_from_start, End: i + offset_from_start})
+			if unicode.IsLower(prev_rune) {
+				if len(current_word) > 0 {
+					words = append(words, Word{Text: string(current_word), Row: row, Start: start + offset_from_start, End: i + offset_from_start})
+				}
+
+				current_word = []rune{r}
+				start = i
+				prev_rune = r
+				continue
 			}
 
-			current_word = []rune{r}
-			start = i
+			if i < len(runes)-1 {
+				next := runes[i+1]
+
+				if !unicode.IsLower(next) {
+					current_word = append(current_word, r)
+					prev_rune = r
+					continue
+				}
+
+				if len(current_word) > 0 {
+					words = append(words, Word{Text: string(current_word), Row: row, Start: start + offset_from_start, End: i + offset_from_start})
+				}
+
+				current_word = []rune{r}
+				start = i
+				prev_rune = r
+				continue
+			}
+
+			current_word = append(current_word, r)
+			prev_rune = r
 
 		case unicode.IsLower(r):
 			current_word = append(current_word, r)
+			prev_rune = r
 
 		default:
 			if len(current_word) > 0 {
@@ -359,6 +389,7 @@ func splitIntoWords(row int, offset_from_start int, line string) []Word {
 
 			current_word = []rune{}
 			start = i + 1
+			prev_rune = r
 		}
 	}
 
