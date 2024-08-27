@@ -2,6 +2,7 @@ package analysis
 
 import (
 	"bufio"
+	"container/list"
 	"fmt"
 	"log"
 	"os"
@@ -14,11 +15,14 @@ import (
 )
 
 type State struct {
-	Spellchecker         *spellchecker.Spellchecker
-	DictionaryPath       string
-	AllowImplicitPlurals bool
-	Documents            map[string]documentData
-	MaxSuggestions       int
+	Spellchecker           *spellchecker.Spellchecker
+	DictionaryPath         string
+	AllowImplicitPlurals   bool
+	Documents              map[string]documentData
+	MaxSuggestions         int
+	ExcludedFileNames      []string
+	ExcludedFileTypes      []string
+	ExcludedFileExtensions []string
 }
 
 type documentData struct {
@@ -32,11 +36,8 @@ func NewState(sc *spellchecker.Spellchecker) State {
 	const DefaultMaxSuggestions = 5
 
 	return State{
-		Spellchecker:         sc,
-		DictionaryPath:       "",
-		AllowImplicitPlurals: false,
-		Documents:            map[string]documentData{},
-		MaxSuggestions:       DefaultMaxSuggestions,
+		Spellchecker:   sc,
+		MaxSuggestions: DefaultMaxSuggestions,
 	}
 }
 
@@ -46,6 +47,11 @@ func (s *State) UpdateSettings(settings lsp.Settings, logger *log.Logger) {
 	s.AllowImplicitPlurals = settings.Proof.AllowImplicitPlurals
 	s.MaxSuggestions = settings.Proof.MaxSuggestions
 	s.DictionaryPath = settings.Proof.DictionaryPath
+	s.ExcludedFileNames = settings.Proof.ExcludedFileNames
+	s.ExcludedFileTypes = settings.Proof.ExcludedFileTypes
+	s.ExcludedFileExtensions = settings.Proof.ExcludedFileExtensions
+
+	s.Spellchecker.WithOpts(spellchecker.WithMaxErrors(settings.Proof.MaxErrors))
 
 	reader := strings.NewReader(strings.Join(settings.Proof.IgnoredWords, "\n"))
 	s.Spellchecker.AddFrom(reader)
@@ -73,11 +79,18 @@ func (s *State) UpdateSettings(settings lsp.Settings, logger *log.Logger) {
 			"| AllowImplicitPlurals: %v "+
 			"| DictionaryPath: %s "+
 			"| MaxSuggestions: %d "+
-			"| IgnoredWords: %v",
+			"| IgnoredWords: %v "+
+			"| ExcludedFileNames: %v "+
+			"| ExcludedFileTypes: %v "+
+			"| ExcludedFileExtensions: %v",
 		s.AllowImplicitPlurals,
 		s.DictionaryPath,
 		s.MaxSuggestions,
-		settings.Proof.IgnoredWords)
+		settings.Proof.MaxErrors,
+		settings.Proof.IgnoredWords,
+		s.ExcludedFileNames,
+		s.ExcludedFileTypes,
+		s.ExcludedFileExtensions)
 }
 
 func (s *State) ExecuteCommand(command string, arguments []string, logger *log.Logger) (string, []lsp.Diagnostic) {
@@ -136,8 +149,14 @@ func (s *State) ExecuteCommand(command string, arguments []string, logger *log.L
 
 func (s *State) OpenDocument(document lsp.TextDocumentItem, logger *log.Logger) []lsp.Diagnostic {
 	uri := document.URI
-
 	data := createDocumentData(document)
+
+	if contains(s.ExcludedFileTypes, data.LanguageID) ||
+		contains(s.ExcludedFileExtensions, data.Extension) ||
+		contains(s.ExcludedFileNames, filepath.Base(uri)) {
+		return []lsp.Diagnostic{}
+	}
+
 	s.Documents[uri] = data
 
 	return getDiagnostics(data, s, logger)
@@ -148,6 +167,13 @@ func (s *State) UpdateDocument(identifier lsp.VersionedTextDocumentIdentifier, c
 	document := s.Documents[uri]
 
 	data := updateDocumentData(document, identifier, change)
+
+	if contains(s.ExcludedFileTypes, data.LanguageID) ||
+		contains(s.ExcludedFileExtensions, data.Extension) ||
+		contains(s.ExcludedFileNames, filepath.Base(uri)) {
+		return []lsp.Diagnostic{}
+	}
+
 	s.Documents[uri] = data
 	return getDiagnostics(data, s, logger)
 }
@@ -163,10 +189,16 @@ func (s *State) CodeAction(request lsp.CodeActionRequest, uri string, logger *lo
 		}
 	}
 
-	// VehicleIDUsingUUID
-
 	actions := []lsp.CodeAction{}
-	document := s.Documents[uri]
+	document, ok := s.Documents[uri]
+
+	if !ok {
+		return lsp.CodeActionResponse{
+			Response: lsp.CreateResponse(request.ID),
+			Result:   []lsp.CodeAction{},
+		}
+	}
+
 	text := document.Text
 	lines := strings.Split(text, "\n")
 	line := lines[rng.Start.Line]
@@ -182,8 +214,15 @@ func (s *State) CodeAction(request lsp.CodeActionRequest, uri string, logger *lo
 		}
 
 		has_trailing_s := strings.HasSuffix(word.Text, "s")
+		has_trailing_es := strings.HasSuffix(word.Text, "es")
 
 		if has_trailing_s {
+			if s.Spellchecker.IsCorrect(strings.ToLower(word.Text[:len(word.Text)-1])) {
+				continue
+			}
+		}
+
+		if has_trailing_es {
 			if s.Spellchecker.IsCorrect(strings.ToLower(word.Text[:len(word.Text)-1])) {
 				continue
 			}
@@ -201,6 +240,18 @@ func (s *State) CodeAction(request lsp.CodeActionRequest, uri string, logger *lo
 						Arguments: []string{
 							uri,
 							word.Text[:len(word.Text)-1],
+						},
+					},
+				})
+			} else if has_trailing_es && s.AllowImplicitPlurals {
+				actions = append(actions, lsp.CodeAction{
+					Title: fmt.Sprintf("Add '%s' to dictionary", word.Text),
+					Command: &lsp.Command{
+						Title:   "Add to dictionary",
+						Command: "proof.add_to_dictionary",
+						Arguments: []string{
+							uri,
+							word.Text[:len(word.Text)-2],
 						},
 					},
 				})
@@ -295,6 +346,14 @@ func checkSplitWordsWithStruct(row int, line string, s *State, _ *log.Logger, se
 		}
 
 		if s.AllowImplicitPlurals && strings.HasSuffix(word_lower, "s") {
+			word_lower = word_lower[:len(word_lower)-1]
+
+			if s.Spellchecker.IsCorrect(word_lower) {
+				continue
+			}
+		}
+
+		if s.AllowImplicitPlurals && strings.HasSuffix(word_lower, "es") {
 			word_lower = word_lower[:len(word_lower)-1]
 
 			if s.Spellchecker.IsCorrect(word_lower) {
@@ -447,4 +506,14 @@ func updateDocumentData(document documentData, identifier lsp.VersionedTextDocum
 func ensureDir(filePath string) error {
 	dir := filepath.Dir(filePath)
 	return os.MkdirAll(dir, 0755)
+}
+
+func contains[T comparable](list []T, item T) bool {
+	for _, i := range list {
+		if i == item {
+			return true
+		}
+	}
+
+	return false
 }
