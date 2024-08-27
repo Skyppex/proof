@@ -11,70 +11,44 @@ import (
 	"unicode"
 
 	"github.com/f1monkey/spellchecker"
-	sitter "github.com/smacker/go-tree-sitter"
 )
 
 type State struct {
-	Spellchecker           *spellchecker.Spellchecker
-	Parser                 *sitter.Parser
-	DictionaryPath         string
-	AllowImplicitPlurals   bool
-	SpellCheckNodes        map[string][]string
-	DefaultSpellCheckNodes []string
-	Documents              map[string]documentData
-	MaxSuggestions         int
+	Spellchecker         *spellchecker.Spellchecker
+	DictionaryPath       string
+	AllowImplicitPlurals bool
+	Documents            map[string]documentData
+	MaxSuggestions       int
 }
 
 type documentData struct {
 	URI        string
-	Text       string
 	LanguageID string
 	Extension  string
+	Text       string
 }
 
 func NewState(sc *spellchecker.Spellchecker) State {
 	const DefaultMaxSuggestions = 5
 
 	return State{
-		Spellchecker:           sc,
-		DictionaryPath:         "",
-		AllowImplicitPlurals:   false,
-		SpellCheckNodes:        map[string][]string{},
-		DefaultSpellCheckNodes: nil,
-		Documents:              map[string]documentData{},
-		MaxSuggestions:         DefaultMaxSuggestions,
+		Spellchecker:         sc,
+		DictionaryPath:       "",
+		AllowImplicitPlurals: false,
+		Documents:            map[string]documentData{},
+		MaxSuggestions:       DefaultMaxSuggestions,
 	}
 }
 
 // Workspace
 
 func (s *State) UpdateSettings(settings lsp.Settings, logger *log.Logger) {
-	_default, exists := settings.Proof.SpellCheckNodes["default"]
-
-	if !exists {
-		_default = nil
-	}
-
-	delete(settings.Proof.SpellCheckNodes, "default")
-
-	s.SpellCheckNodes = settings.Proof.SpellCheckNodes
-	s.DefaultSpellCheckNodes = _default
 	s.AllowImplicitPlurals = settings.Proof.AllowImplicitPlurals
 	s.MaxSuggestions = settings.Proof.MaxSuggestions
 	s.DictionaryPath = settings.Proof.DictionaryPath
 
-	logger.Printf(
-		"Updated Settings "+
-			"| DefaultSpellCheck: %v "+
-			"| SpellCheck: %v "+
-			"| AllowImplicitPlurals: %v "+
-			"| DictionaryPath: %s "+
-			"| MaxSuggestions: %d",
-		s.DefaultSpellCheckNodes,
-		s.SpellCheckNodes,
-		s.AllowImplicitPlurals,
-		s.DictionaryPath,
-		s.MaxSuggestions)
+	reader := strings.NewReader(strings.Join(settings.Proof.IgnoredWords, "\n"))
+	s.Spellchecker.AddFrom(reader)
 
 	if s.DictionaryPath != "" {
 		if err := ensureDir(s.DictionaryPath); err != nil {
@@ -93,6 +67,17 @@ func (s *State) UpdateSettings(settings lsp.Settings, logger *log.Logger) {
 		reader := bufio.NewReader(file)
 		s.Spellchecker.AddFrom(reader)
 	}
+
+	logger.Printf(
+		"Updated Settings "+
+			"| AllowImplicitPlurals: %v "+
+			"| DictionaryPath: %s "+
+			"| MaxSuggestions: %d "+
+			"| IgnoredWords: %v",
+		s.AllowImplicitPlurals,
+		s.DictionaryPath,
+		s.MaxSuggestions,
+		settings.Proof.IgnoredWords)
 }
 
 func (s *State) ExecuteCommand(command string, arguments []string, logger *log.Logger) (string, []lsp.Diagnostic) {
@@ -154,6 +139,7 @@ func (s *State) OpenDocument(document lsp.TextDocumentItem, logger *log.Logger) 
 
 	data := createDocumentData(document)
 	s.Documents[uri] = data
+
 	return getDiagnostics(data, s, logger)
 }
 

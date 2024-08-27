@@ -34,7 +34,7 @@ func main() {
 		panic(err)
 	}
 
-	word_list := analysis.WordList + analysis.ExtraWords
+	word_list := analysis.WordList
 	reader := strings.NewReader(word_list)
 	sc.AddFrom(reader)
 
@@ -175,7 +175,7 @@ func handleMessage(
 }
 
 func getLogger(filename string) *log.Logger {
-	logfile, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0666)
+	log_file, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0666)
 
 	if err != nil {
 		error_message, err := fmt.Printf("Bad file bro: %s", filename)
@@ -187,7 +187,7 @@ func getLogger(filename string) *log.Logger {
 		}
 	}
 
-	return log.New(logfile, "[proof]", log.Ldate|log.Ltime|log.Lshortfile)
+	return log.New(log_file, "[proof]", log.Ldate|log.Ltime|log.Lshortfile)
 }
 
 func writeResponse(writer io.Writer, msg any) {
