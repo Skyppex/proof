@@ -2,7 +2,6 @@ package analysis
 
 import (
 	"bufio"
-	"container/list"
 	"fmt"
 	"log"
 	"os"
@@ -38,6 +37,7 @@ func NewState(sc *spellchecker.Spellchecker) State {
 	return State{
 		Spellchecker:   sc,
 		MaxSuggestions: DefaultMaxSuggestions,
+		Documents:      make(map[string]documentData),
 	}
 }
 
