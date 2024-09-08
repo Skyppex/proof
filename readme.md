@@ -16,7 +16,7 @@ working on instantly (unless you have a horrendously large file of say 300'000
 lines :eyes:).
 - **Customizable**: You can add your own words to a dictionary file which is
 used by all instances of proof (after they have started).
-- **Lightweight**: I have seen proof using about 50 MB after running for a while
+- **Lightweight**: I have seen proof using at most 60 MBof memory after running for a while
   opening several different files.
 
 ## Installation
