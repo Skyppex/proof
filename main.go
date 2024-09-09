@@ -123,12 +123,14 @@ func handleMessage(
 		logger.Printf("Opened: %s",
 			request.Params.TextDocument.URI)
 
-		diagnostics := state.OpenDocument(request.Params.TextDocument, logger)
+		diagnostics, shouldPublishDiagnostics := state.OpenDocument(request.Params.TextDocument, logger)
 
-		msg := lsp.NewPublishDiagnosticsNotification(request.Params.TextDocument.URI, diagnostics)
-		writeResponse(writer, msg)
+		if shouldPublishDiagnostics {
+			msg := lsp.NewPublishDiagnosticsNotification(request.Params.TextDocument.URI, diagnostics)
+			writeResponse(writer, msg)
 
-		logger.Print("didOpen Sent diagnostics")
+			logger.Print("didOpen Sent diagnostics")
+		}
 
 	case "textDocument/didChange":
 		var request lsp.DidChangeTextDocumentNotification
@@ -142,11 +144,13 @@ func handleMessage(
 			request.Params.TextDocument.URI)
 
 		for _, change := range request.Params.ContentChanges {
-			diagnostics := state.UpdateDocument(request.Params.TextDocument, change.Text, logger)
+			diagnostics, shouldPublishDiagnostics := state.UpdateDocument(request.Params.TextDocument, change.Text, logger)
 
-			msg := lsp.NewPublishDiagnosticsNotification(request.Params.TextDocument.URI, diagnostics)
-			writeResponse(writer, msg)
-			logger.Print("didChange Sent diagnostics")
+			if shouldPublishDiagnostics {
+				msg := lsp.NewPublishDiagnosticsNotification(request.Params.TextDocument.URI, diagnostics)
+				writeResponse(writer, msg)
+				logger.Print("didChange Sent diagnostics")
+			}
 		}
 
 	case "textDocument/codeAction":

@@ -25,10 +25,11 @@ type State struct {
 }
 
 type documentData struct {
-	URI        string
-	LanguageID string
-	Extension  string
-	Text       string
+	URI              string
+	LanguageID       string
+	Extension        string
+	Text             string
+	DiagnosticsCount int
 }
 
 func NewState(sc *spellchecker.Spellchecker) State {
@@ -79,6 +80,7 @@ func (s *State) UpdateSettings(settings lsp.Settings, logger *log.Logger) {
 			"| AllowImplicitPlurals: %v "+
 			"| DictionaryPath: %s "+
 			"| MaxSuggestions: %d "+
+			"| MaxErrors: %v "+
 			"| IgnoredWords: %v "+
 			"| ExcludedFileNames: %v "+
 			"| ExcludedFileTypes: %v "+
@@ -147,35 +149,39 @@ func (s *State) ExecuteCommand(command string, arguments []string, logger *log.L
 
 // Documents
 
-func (s *State) OpenDocument(document lsp.TextDocumentItem, logger *log.Logger) []lsp.Diagnostic {
+func (s *State) OpenDocument(document lsp.TextDocumentItem, logger *log.Logger) ([]lsp.Diagnostic, bool) {
 	uri := document.URI
 	data := createDocumentData(document)
+	diagnostics := getDiagnostics(data, s, logger)
+	data.setDiagnosticsCount(diagnostics)
 
 	if contains(s.ExcludedFileTypes, data.LanguageID) ||
 		contains(s.ExcludedFileExtensions, data.Extension) ||
 		contains(s.ExcludedFileNames, filepath.Base(uri)) {
-		return []lsp.Diagnostic{}
+		return []lsp.Diagnostic{}, false
 	}
 
 	s.Documents[uri] = data
 
-	return getDiagnostics(data, s, logger)
+	return diagnostics, true
 }
 
-func (s *State) UpdateDocument(identifier lsp.VersionedTextDocumentIdentifier, change string, logger *log.Logger) []lsp.Diagnostic {
+func (s *State) UpdateDocument(identifier lsp.VersionedTextDocumentIdentifier, change string, logger *log.Logger) ([]lsp.Diagnostic, bool) {
 	uri := identifier.URI
 	document := s.Documents[uri]
-
-	data := updateDocumentData(document, identifier, change)
+	currentDiagnosticCount := document.DiagnosticsCount
+	data := updateDocumentData(document, change)
+	diagnostics := getDiagnostics(data, s, logger)
+	data.setDiagnosticsCount(diagnostics)
 
 	if contains(s.ExcludedFileTypes, data.LanguageID) ||
 		contains(s.ExcludedFileExtensions, data.Extension) ||
 		contains(s.ExcludedFileNames, filepath.Base(uri)) {
-		return []lsp.Diagnostic{}
+		return []lsp.Diagnostic{}, false
 	}
 
 	s.Documents[uri] = data
-	return getDiagnostics(data, s, logger)
+	return diagnostics, currentDiagnosticCount != 0 || data.DiagnosticsCount != 0
 }
 
 func (s *State) CodeAction(request lsp.CodeActionRequest, uri string, logger *log.Logger) lsp.CodeActionResponse {
@@ -494,7 +500,7 @@ func createDocumentData(document lsp.TextDocumentItem) documentData {
 	}
 }
 
-func updateDocumentData(document documentData, identifier lsp.VersionedTextDocumentIdentifier, change string) documentData {
+func updateDocumentData(document documentData, change string) documentData {
 	return documentData{
 		URI:        document.URI,
 		Text:       change,
@@ -516,4 +522,8 @@ func contains[T comparable](list []T, item T) bool {
 	}
 
 	return false
+}
+
+func (d *documentData) setDiagnosticsCount(diagnostics []lsp.Diagnostic) {
+	d.DiagnosticsCount = len(diagnostics)
 }
