@@ -25,11 +25,11 @@ type State struct {
 }
 
 type documentData struct {
-	URI              string
-	LanguageID       string
-	Extension        string
-	Text             string
-	DiagnosticsCount int
+	URI         string
+	LanguageID  string
+	Extension   string
+	Text        string
+	Diagnostics []lsp.Diagnostic
 }
 
 func NewState(sc *spellchecker.Spellchecker) State {
@@ -153,7 +153,7 @@ func (s *State) OpenDocument(document lsp.TextDocumentItem, logger *log.Logger) 
 	uri := document.URI
 	data := createDocumentData(document)
 	diagnostics := getDiagnostics(data, s, logger)
-	data.setDiagnosticsCount(diagnostics)
+	data.Diagnostics = diagnostics
 
 	if contains(s.ExcludedFileTypes, data.LanguageID) ||
 		contains(s.ExcludedFileExtensions, data.Extension) ||
@@ -169,10 +169,10 @@ func (s *State) OpenDocument(document lsp.TextDocumentItem, logger *log.Logger) 
 func (s *State) UpdateDocument(identifier lsp.VersionedTextDocumentIdentifier, change string, logger *log.Logger) ([]lsp.Diagnostic, bool) {
 	uri := identifier.URI
 	document := s.Documents[uri]
-	currentDiagnosticCount := document.DiagnosticsCount
+	currentDiagnostics := document.Diagnostics
 	data := updateDocumentData(document, change)
 	diagnostics := getDiagnostics(data, s, logger)
-	data.setDiagnosticsCount(diagnostics)
+	data.Diagnostics = diagnostics
 
 	if contains(s.ExcludedFileTypes, data.LanguageID) ||
 		contains(s.ExcludedFileExtensions, data.Extension) ||
@@ -181,7 +181,22 @@ func (s *State) UpdateDocument(identifier lsp.VersionedTextDocumentIdentifier, c
 	}
 
 	s.Documents[uri] = data
-	return diagnostics, currentDiagnosticCount != 0 || data.DiagnosticsCount != 0
+
+	return diagnostics, !sliceEqual(currentDiagnostics, diagnostics)
+}
+
+func (s *State) Diagnostic(uri string, logger *log.Logger) ([]lsp.Diagnostic, bool) {
+	data := s.Documents[uri]
+	diagnostics := getDiagnosticsForFile(uri, s, logger)
+
+	if sliceEqual(data.Diagnostics, diagnostics) {
+		return []lsp.Diagnostic{}, false
+	}
+
+	data.Diagnostics = diagnostics
+	s.Documents[uri] = data
+
+	return diagnostics, true
 }
 
 func (s *State) CodeAction(request lsp.CodeActionRequest, uri string, logger *log.Logger) lsp.CodeActionResponse {
@@ -524,6 +539,16 @@ func contains[T comparable](list []T, item T) bool {
 	return false
 }
 
-func (d *documentData) setDiagnosticsCount(diagnostics []lsp.Diagnostic) {
-	d.DiagnosticsCount = len(diagnostics)
+func sliceEqual[T comparable](a, b []T) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+
+	return true
 }

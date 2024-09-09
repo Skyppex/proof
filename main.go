@@ -40,6 +40,8 @@ func main() {
 	state := analysis.NewState(sc)
 	writer := os.Stdout
 
+	shuttingDown := false
+
 	for scanner.Scan() {
 		bytes := scanner.Bytes()
 
@@ -50,7 +52,22 @@ func main() {
 			continue
 		}
 
-		handleMessage(logger, writer, &state, method, content)
+		shouldExit, shutdownReceived := handleMessage(logger, writer, &state, method, content)
+
+		if shouldExit {
+			break
+		}
+
+		if shutdownReceived {
+			shuttingDown = true
+		}
+	}
+
+	if !shuttingDown {
+		logger.Print("Exiting without shutdown message")
+		os.Exit(1)
+	} else {
+		os.Exit(0)
 	}
 }
 
@@ -59,15 +76,16 @@ func handleMessage(
 	writer io.Writer,
 	state *analysis.State,
 	method string,
-	content []byte) {
+	content []byte) (bool, bool) {
 
 	switch method {
 	case "initialize":
+		logger.Print("Initializing")
 		var request lsp.InitializeRequest
 
 		if err := json.Unmarshal(content, &request); err != nil {
 			logger.Printf("Can't parse method 'initialize' | %s", err)
-			return
+			return false, false
 		}
 
 		logger.Printf("Connected to: %s %s",
@@ -79,12 +97,35 @@ func handleMessage(
 
 		logger.Print("Sent initialize response")
 
+	case "initialized":
+		logger.Print("Initialized")
+
+	case "shutdown":
+		var request lsp.Shutdown
+
+		if err := json.Unmarshal(content, &request); err != nil {
+			logger.Printf("Can't parse method 'shutdown' | %s", err)
+
+			return false, false
+		}
+
+		logger.Print("Shutting down")
+
+		msg := lsp.NewShutdownResponse(request.ID)
+		writeResponse(writer, msg)
+		return false, true
+
+	case "exit":
+		logger.Print("Exiting")
+
+		return true, false
+
 	case "workspace/didChangeConfiguration":
 		var request lsp.DidChangeConfigurationRequest
 
 		if err := json.Unmarshal(content, &request); err != nil {
 			logger.Printf("Can't parse method 'workspace/didChangeConfiguration' | %s", err)
-			return
+			return false, false
 		}
 
 		logger.Printf("Configuration changed: %v",
@@ -97,7 +138,7 @@ func handleMessage(
 
 		if err := json.Unmarshal(content, &request); err != nil {
 			logger.Printf("Can't parse method 'workspace/executeCommand' | %s", err)
-			return
+			return false, false
 		}
 
 		logger.Printf("Execute command: %s",
@@ -109,7 +150,7 @@ func handleMessage(
 			msg := lsp.NewPublishDiagnosticsNotification(uri, diagnostics)
 			writeResponse(writer, msg)
 
-			logger.Print("executeCommand Sent diagnostics")
+			logger.Print("executeCommand sent diagnostics")
 		}
 
 	case "textDocument/didOpen":
@@ -117,19 +158,19 @@ func handleMessage(
 
 		if err := json.Unmarshal(content, &request); err != nil {
 			logger.Printf("Can't parse method 'textDocument/didOpen' | %s", err)
-			return
+			return false, false
 		}
 
 		logger.Printf("Opened: %s",
 			request.Params.TextDocument.URI)
 
-		diagnostics, shouldPublishDiagnostics := state.OpenDocument(request.Params.TextDocument, logger)
+		diagnostics, diagnosticsDiffer := state.OpenDocument(request.Params.TextDocument, logger)
 
-		if shouldPublishDiagnostics {
+		if diagnosticsDiffer {
 			msg := lsp.NewPublishDiagnosticsNotification(request.Params.TextDocument.URI, diagnostics)
 			writeResponse(writer, msg)
 
-			logger.Print("didOpen Sent diagnostics")
+			logger.Print("didOpen sent diagnostics")
 		}
 
 	case "textDocument/didChange":
@@ -137,21 +178,44 @@ func handleMessage(
 
 		if err := json.Unmarshal(content, &request); err != nil {
 			logger.Printf("Can't parse method 'textDocument/didChange' | %s", err)
-			return
+			return false, false
 		}
 
 		logger.Printf("Changed: %s",
 			request.Params.TextDocument.URI)
 
 		for _, change := range request.Params.ContentChanges {
-			diagnostics, shouldPublishDiagnostics := state.UpdateDocument(request.Params.TextDocument, change.Text, logger)
+			diagnostics, diagnosticsDiffer := state.UpdateDocument(request.Params.TextDocument, change.Text, logger)
 
-			if shouldPublishDiagnostics {
+			if diagnosticsDiffer {
 				msg := lsp.NewPublishDiagnosticsNotification(request.Params.TextDocument.URI, diagnostics)
 				writeResponse(writer, msg)
-				logger.Print("didChange Sent diagnostics")
+				logger.Print("didChange sent diagnostics")
 			}
 		}
+
+	case "textDocument/diagnostic":
+		var request lsp.DiagnosticRequest
+
+		if err := json.Unmarshal(content, &request); err != nil {
+			logger.Printf("Can't parse method 'textDocument/diagnostic' | %s", err)
+			return false, false
+		}
+
+		logger.Printf("Diagnostic: %s", request.Params.TextDocument.URI)
+
+		diagnostics, diagnosticsDiffer := state.Diagnostic(request.Params.TextDocument.URI, logger)
+
+		kind := lsp.Unchanged
+
+		if diagnosticsDiffer {
+			kind = lsp.Full
+		}
+
+		msg := lsp.NewDiagnosticResponse(request.ID, kind, diagnostics, request.Params.TextDocument.URI)
+		writeResponse(writer, msg)
+
+		logger.Print("diagnostic sent diagnostics")
 
 	case "textDocument/codeAction":
 		logger.Print("Received Code Action Request")
@@ -159,7 +223,7 @@ func handleMessage(
 
 		if err := json.Unmarshal(content, &request); err != nil {
 			logger.Printf("Can't parse method 'textDocument/codeAction' | %s", err)
-			return
+			return false, false
 		}
 
 		logger.Printf("Code action: %s",
@@ -170,7 +234,13 @@ func handleMessage(
 		logger.Printf("Code action response: %v", response)
 
 		writeResponse(writer, response)
+
+	default:
+		logger.Printf("Unhandled method: %s", method)
+
 	}
+
+	return false, false
 }
 
 func getLogger(args []string) *log.Logger {

@@ -16,10 +16,25 @@ working on instantly (unless you have a horrendously large file of say 300'000
 lines :eyes:).
 - **Customizable**: You can add your own words to a dictionary file which is
 used by all instances of proof (after they have started).
-- **Lightweight**: I have seen proof using at most 60 MBof memory after running for a while
+- **Lightweight**: I have seen proof using at most 60 MB of memory after running for a while
   opening several different files.
 
 ## Installation
+
+Currently the only option you have is to clone the repo and build the binary
+
+```sh
+git clone https://github.com/Skyppex//proof.git
+```
+
+Then you can build the binary using the go cli
+
+```sh
+cd proof
+go build
+```
+
+## Configuration
 
 To use proof, you need to have a working LSP client. Here is an example using
 lspconfig with the built-in LSP client:
@@ -28,18 +43,25 @@ lspconfig with the built-in LSP client:
 local lspconfig = require("lspconfig")
 local configs = require("lspconfig.configs")
 
+local proof_path = "/path/to/proof.exe"
+local log_file = "/path/to/proof.log"
+
 if not configs.proof then
     configs.proof = {
         default_config = {
             -- Optional log file path. If not set, proof will not log anything.
             -- Use a log file for debugging issues or when contributing.
+            --cmd = { proof_exe },
             cmd = { proof_exe, log_file },
+
             -- Use "*" for all filetypes and excludes in the settings or specify
             -- only some filetypes here.
             filetypes = { "*" },
+
             single_file_support = true,
+
             root_dir = lspconfig.util.find_git_ancestor,
-            settings = {},
+
             -- Make sure to let proof know about the LSP clients capabilities.
             capabilities = capabilities,
         },
@@ -84,3 +106,23 @@ lspconfig.proof.setup({
     },
 })
 ```
+
+## Usage
+
+Using the above config, proof will start when you open a file.
+
+Words with typos will be highlighted by your LSP client. When hovering over the
+word, you can activate code actions to see suggestions for the word or add the
+word to your dictionary.
+
+## Contributing
+
+If you want to contribute to proof, you can do so by opening an issue or a pull
+request.
+
+If you want to add words to the dictionary, you can do so by opening a
+pull request with the additional words. The words being accepted are
+conjugations of existing words, abbreviations used in development and names of
+tools used in development.
+Please provide a full list of references and sources for the words you are
+adding.
