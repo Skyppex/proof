@@ -194,28 +194,28 @@ func handleMessage(
 			}
 		}
 
-	case "textDocument/diagnostic":
-		var request lsp.DiagnosticRequest
-
-		if err := json.Unmarshal(content, &request); err != nil {
-			logger.Printf("Can't parse method 'textDocument/diagnostic' | %s", err)
-			return false, false
-		}
-
-		logger.Printf("Diagnostic: %s", request.Params.TextDocument.URI)
-
-		diagnostics, diagnosticsDiffer := state.Diagnostic(request.Params.TextDocument.URI, logger)
-
-		kind := lsp.Unchanged
-
-		if diagnosticsDiffer {
-			kind = lsp.Full
-		}
-
-		msg := lsp.NewDiagnosticResponse(request.ID, kind, diagnostics, request.Params.TextDocument.URI)
-		writeResponse(writer, msg)
-
-		logger.Print("diagnostic sent diagnostics")
+	// case "textDocument/diagnostic":
+	// 	var request lsp.DiagnosticRequest
+	//
+	// 	if err := json.Unmarshal(content, &request); err != nil {
+	// 		logger.Printf("Can't parse method 'textDocument/diagnostic' | %s", err)
+	// 		return false, false
+	// 	}
+	//
+	// 	logger.Printf("Diagnostic: %s", request.Params.TextDocument.URI)
+	//
+	// 	diagnostics, diagnosticsDiffer := state.Diagnostic(request.Params.TextDocument.URI, logger)
+	//
+	// 	kind := lsp.Unchanged
+	//
+	// 	if diagnosticsDiffer {
+	// 		kind = lsp.Full
+	// 	}
+	//
+	// 	msg := lsp.NewDiagnosticResponse(request.ID, kind, diagnostics, request.Params.TextDocument.URI)
+	// 	writeResponse(writer, msg)
+	//
+	// 	logger.Printf("diagnostic sent diagnostics: v%, v%", len(diagnostics), kind)
 
 	case "textDocument/codeAction":
 		logger.Print("Received Code Action Request")
