@@ -31,8 +31,8 @@ local configs = require("lspconfig.configs")
 if not configs.proof then
     configs.proof = {
         default_config = {
-            -- Currently you have to specify a log file here. Can be any file on
-            -- your system.
+            -- Optional log file path. If not set, proof will not log anything.
+            -- Use a log file for debugging issues or when contributing.
             cmd = { proof_exe, log_file },
             -- Use "*" for all filetypes and excludes in the settings or specify
             -- only some filetypes here.

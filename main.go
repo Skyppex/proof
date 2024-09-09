@@ -17,9 +17,8 @@ import (
 
 func main() {
 	args := os.Args
-	var log_file_path string = args[1]
 
-	logger := getLogger(log_file_path)
+	logger := getLogger(args)
 	logger.Println("Starting proof")
 	scanner := bufio.NewScanner(os.Stdin)
 	scanner.Split(rpc.Split)
@@ -106,7 +105,7 @@ func handleMessage(
 
 		uri, diagnostics := state.ExecuteCommand(request.Params.Command, request.Params.Arguments, logger)
 
-		if len(diagnostics) > 0 && uri != "" {
+		if uri != "" {
 			msg := lsp.NewPublishDiagnosticsNotification(uri, diagnostics)
 			writeResponse(writer, msg)
 
@@ -126,12 +125,10 @@ func handleMessage(
 
 		diagnostics := state.OpenDocument(request.Params.TextDocument, logger)
 
-		if len(diagnostics) > 0 {
-			msg := lsp.NewPublishDiagnosticsNotification(request.Params.TextDocument.URI, diagnostics)
-			writeResponse(writer, msg)
+		msg := lsp.NewPublishDiagnosticsNotification(request.Params.TextDocument.URI, diagnostics)
+		writeResponse(writer, msg)
 
-			logger.Print("didOpen Sent diagnostics")
-		}
+		logger.Print("didOpen Sent diagnostics")
 
 	case "textDocument/didChange":
 		var request lsp.DidChangeTextDocumentNotification
@@ -147,11 +144,9 @@ func handleMessage(
 		for _, change := range request.Params.ContentChanges {
 			diagnostics := state.UpdateDocument(request.Params.TextDocument, change.Text, logger)
 
-			if len(diagnostics) > 0 {
-				msg := lsp.NewPublishDiagnosticsNotification(request.Params.TextDocument.URI, diagnostics)
-				writeResponse(writer, msg)
-				logger.Print("didChange Sent diagnostics")
-			}
+			msg := lsp.NewPublishDiagnosticsNotification(request.Params.TextDocument.URI, diagnostics)
+			writeResponse(writer, msg)
+			logger.Print("didChange Sent diagnostics")
 		}
 
 	case "textDocument/codeAction":
@@ -174,7 +169,12 @@ func handleMessage(
 	}
 }
 
-func getLogger(filename string) *log.Logger {
+func getLogger(args []string) *log.Logger {
+	if len(args) <= 1 {
+		return log.New(io.Discard, "[proof]", log.Ldate|log.Ltime|log.Lshortfile)
+	}
+
+	filename := args[1]
 	log_file, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0666)
 
 	if err != nil {
