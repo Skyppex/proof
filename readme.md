@@ -120,9 +120,23 @@ word to your dictionary.
 If you want to contribute to proof, you can do so by opening an issue or a pull
 request.
 
-If you want to add words to the dictionary, you can do so by opening a
-pull request with the additional words. The words being accepted are
-conjugations of existing words, abbreviations used in development and names of
-tools used in development.
-Please provide a full list of references and sources for the words you are
-adding.
+### Word list
+
+The word list is based on
+[makifdb/spellcheck/main/words.txt](https://raw.githubusercontent.com/makifdb/spellcheck/main/words.txt)
+with some additions for developer specific words, abbreviations and tools. If
+you wish to add words to the dictionary, you can do so by opening a pull request.
+
+The types of words that will be accepted are:
+
+- Conjugations of existing words even if they are technically not a real word.
+  - Example: `matchee` (conjugation of `match`).
+- Abbreviations used in development.
+  - Example: `lsp` (abbreviation for Language Server Protocol).
+- Names of tools used in development.
+  - Example: `neovim` (name of your favorite text editor).
+
+Types of words that are not accepted:
+
+- Names of people.
+- Usernames of people.

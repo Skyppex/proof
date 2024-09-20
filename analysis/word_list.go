@@ -116018,7 +116018,6 @@ foliums
 folk
 folkboat
 folkcraft
-folke
 folkfree
 folkish
 folkishness
