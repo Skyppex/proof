@@ -3,19 +3,19 @@
 Proof is a simple and lightweight spell checking lsp primarily made for neovim.
 It uses the
 [f1monkey/spellchecker](https://github.com/f1monkey/spellchecker)
-    library to provide spell checking capabilities and uses the words from
+library to provide spell checking capabilities and uses the words from
 [makifdb/spellcheck/main/words.txt](https://raw.githubusercontent.com/makifdb/spellcheck/main/words.txt)
 with some additions for developer specific words, abbreviations and tools.
 
 ## Features
 
 - **Uses Diagnostic LSP**: Proof uses the diagnostic LSP to provide spell
-checking diagnostics.
+  checking diagnostics.
 - **Fast**: Proof diagnostics across the entire file you're
-working on instantly (unless you have a horrendously large file of say 300'000
-lines :eyes:).
+  working on instantly (unless you have a horrendously large file of say 300'000
+  lines :eyes:).
 - **Customizable**: You can add your own words to a dictionary file which is
-used by all instances of proof (after they have started).
+  used by all instances of proof (after they have started).
 - **Lightweight**: I have seen proof using at most 60 MB of memory after running for a while
   opening several different files.
 
@@ -92,16 +92,13 @@ lspconfig.proof.setup({
             -- You can also choose to feed some words to the spell checker here.
             ignoredWords = {},
 
-            -- File names which should be excluded from spell checking.
-            excludedFileNames = {},
+            -- A list of regex patterns used to exclude files from being spell checked
+            excludedFilePatterns = {},
 
             -- File types which should be excluded from spell checking.
             -- This uses neovim's `&filetype` variable. Or more specifically the
             -- languageId sent to proof by the LSP client.
             excludedFileTypes = {},
-
-            -- File extensions which should be excluded from spell checking.
-            excludedFileExtensions = {},
         },
     },
 })
