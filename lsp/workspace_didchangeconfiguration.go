@@ -14,12 +14,11 @@ type Settings struct {
 }
 
 type ProofSettings struct {
-	DictionaryPath         string   `json:"dictionaryPath"`
-	AllowImplicitPlurals   bool     `json:"allowImplicitPlurals"`
-	MaxErrors              int      `json:"maxErrors"`
-	MaxSuggestions         int      `json:"maxSuggestions"`
-	IgnoredWords           []string `json:"ignoredWords"`
-	ExcludedFileNames      []string `json:"excludedFileNames"`
-	ExcludedFileTypes      []string `json:"excludedFileTypes"`
-	ExcludedFileExtensions []string `json:"excludedFileExtensions"`
+	DictionaryPath       string   `json:"dictionaryPath"`
+	AllowImplicitPlurals bool     `json:"allowImplicitPlurals"`
+	MaxErrors            int      `json:"maxErrors"`
+	MaxSuggestions       int      `json:"maxSuggestions"`
+	IgnoredWords         []string `json:"ignoredWords"`
+	ExcludedFilePatterns []string `json:"excludedFilePatterns"`
+	ExcludedFileTypes    []string `json:"excludedFileTypes"`
 }

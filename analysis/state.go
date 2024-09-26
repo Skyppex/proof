@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"proof/lsp"
+	"regexp"
 	"strings"
 	"unicode"
 
@@ -14,14 +15,13 @@ import (
 )
 
 type State struct {
-	Spellchecker           *spellchecker.Spellchecker
-	DictionaryPath         string
-	AllowImplicitPlurals   bool
-	Documents              map[string]documentData
-	MaxSuggestions         int
-	ExcludedFileNames      []string
-	ExcludedFileTypes      []string
-	ExcludedFileExtensions []string
+	Spellchecker         *spellchecker.Spellchecker
+	DictionaryPath       string
+	AllowImplicitPlurals bool
+	Documents            map[string]documentData
+	MaxSuggestions       int
+	ExcludedFilePatterns []string
+	ExcludedFileTypes    []string
 }
 
 type documentData struct {
@@ -48,9 +48,8 @@ func (s *State) UpdateSettings(settings lsp.Settings, logger *log.Logger) {
 	s.AllowImplicitPlurals = settings.Proof.AllowImplicitPlurals
 	s.MaxSuggestions = settings.Proof.MaxSuggestions
 	s.DictionaryPath = settings.Proof.DictionaryPath
-	s.ExcludedFileNames = settings.Proof.ExcludedFileNames
+	s.ExcludedFilePatterns = settings.Proof.ExcludedFilePatterns
 	s.ExcludedFileTypes = settings.Proof.ExcludedFileTypes
-	s.ExcludedFileExtensions = settings.Proof.ExcludedFileExtensions
 
 	s.Spellchecker.WithOpts(spellchecker.WithMaxErrors(settings.Proof.MaxErrors))
 
@@ -83,16 +82,14 @@ func (s *State) UpdateSettings(settings lsp.Settings, logger *log.Logger) {
 			"| MaxErrors: %v "+
 			"| IgnoredWords: %v "+
 			"| ExcludedFileNames: %v "+
-			"| ExcludedFileTypes: %v "+
-			"| ExcludedFileExtensions: %v",
+			"| ExcludedFileTypes: %v ",
 		s.AllowImplicitPlurals,
 		s.DictionaryPath,
 		s.MaxSuggestions,
 		settings.Proof.MaxErrors,
 		settings.Proof.IgnoredWords,
-		s.ExcludedFileNames,
-		s.ExcludedFileTypes,
-		s.ExcludedFileExtensions)
+		s.ExcludedFilePatterns,
+		s.ExcludedFileTypes)
 }
 
 func (s *State) ExecuteCommand(command string, arguments []string, logger *log.Logger) (string, []lsp.Diagnostic) {
@@ -155,9 +152,7 @@ func (s *State) OpenDocument(document lsp.TextDocumentItem, logger *log.Logger) 
 	diagnostics := getDiagnostics(data, s, logger)
 	data.Diagnostics = diagnostics
 
-	if contains(s.ExcludedFileTypes, data.LanguageID) ||
-		contains(s.ExcludedFileExtensions, data.Extension) ||
-		contains(s.ExcludedFileNames, filepath.Base(uri)) {
+	if data.isExcluded(s) {
 		return []lsp.Diagnostic{}, false
 	}
 
@@ -174,9 +169,7 @@ func (s *State) UpdateDocument(identifier lsp.VersionedTextDocumentIdentifier, c
 	diagnostics := getDiagnostics(data, s, logger)
 	data.Diagnostics = diagnostics
 
-	if contains(s.ExcludedFileTypes, data.LanguageID) ||
-		contains(s.ExcludedFileExtensions, data.Extension) ||
-		contains(s.ExcludedFileNames, filepath.Base(uri)) {
+	if data.isExcluded(s) {
 		return []lsp.Diagnostic{}, false
 	}
 
@@ -551,4 +544,15 @@ func sliceEqual[T comparable](a, b []T) bool {
 	}
 
 	return true
+}
+
+func (data documentData) isExcluded(s *State) bool {
+	for _, pattern := range s.ExcludedFilePatterns {
+		re := regexp.MustCompile(pattern)
+		if re.MatchString(data.URI) {
+			return true
+		}
+	}
+
+	return contains(s.ExcludedFileTypes, data.LanguageID)
 }
