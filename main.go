@@ -169,7 +169,6 @@ func handleMessage(
 		if diagnosticsDiffer {
 			msg := lsp.NewPublishDiagnosticsNotification(request.Params.TextDocument.URI, diagnostics)
 			writeResponse(writer, msg)
-
 			logger.Print("didOpen sent diagnostics")
 		}
 

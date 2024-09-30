@@ -152,7 +152,7 @@ func (s *State) OpenDocument(document lsp.TextDocumentItem, logger *log.Logger) 
 	diagnostics := getDiagnostics(data, s, logger)
 	data.Diagnostics = diagnostics
 
-	if data.isExcluded(s) {
+	if data.isExcluded(s, logger) {
 		return []lsp.Diagnostic{}, false
 	}
 
@@ -169,7 +169,7 @@ func (s *State) UpdateDocument(identifier lsp.VersionedTextDocumentIdentifier, c
 	diagnostics := getDiagnostics(data, s, logger)
 	data.Diagnostics = diagnostics
 
-	if data.isExcluded(s) {
+	if data.isExcluded(s, logger) {
 		return []lsp.Diagnostic{}, false
 	}
 
@@ -197,6 +197,7 @@ func (s *State) CodeAction(request lsp.CodeActionRequest, uri string, logger *lo
 	rng := params.Range
 
 	if rng.Start.Line != rng.End.Line {
+		logger.Print("3")
 		return lsp.CodeActionResponse{
 			Response: lsp.CreateResponse(request.ID),
 			Result:   []lsp.CodeAction{},
@@ -546,9 +547,14 @@ func sliceEqual[T comparable](a, b []T) bool {
 	return true
 }
 
-func (data documentData) isExcluded(s *State) bool {
+func (data documentData) isExcluded(s *State, logger *log.Logger) bool {
 	for _, pattern := range s.ExcludedFilePatterns {
-		re := regexp.MustCompile(pattern)
+		re, err := regexp.Compile(pattern)
+
+		if err != nil {
+			logger.Panicf("Failed to compile regex pattern: %s, %s", pattern, err)
+		}
+
 		if re.MatchString(data.URI) {
 			return true
 		}
