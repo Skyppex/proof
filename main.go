@@ -18,6 +18,22 @@ import (
 func main() {
 	args := os.Args
 
+	if len(args) == 2 && (args[1] == "--version" || args[1] == "-v") {
+		fmt.Println("0.1.0")
+		os.Exit(0)
+	}
+
+	if len(args) == 2 && (args[1] == "--help" || args[1] == "-h") {
+		fmt.Println(`USAGE: proof [OPTIONS] (LOG_FILE)
+[ARGUMENTS]
+LOG_FILE: Optionally specify a file to log to
+
+[OPTIONS]
+--version(-v): Print version number
+--help(-h): Print this help message`)
+		os.Exit(0)
+	}
+
 	logger := getLogger(args)
 	logger.Println("Starting proof")
 	scanner := bufio.NewScanner(os.Stdin)
