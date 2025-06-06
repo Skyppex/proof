@@ -1,4 +1,4 @@
-# Proof
+# proof
 
 Proof is a simple and lightweight spell checking lsp primarily made for neovim.
 It uses the
@@ -14,17 +14,28 @@ with some additions for developer specific words, abbreviations and tools.
 - **Fast**: Proof diagnostics across the entire file you're
   working on instantly (unless you have a horrendously large file of say 300'000
   lines :eyes:).
-- **Customizable**: You can add your own words to a dictionary file which is
+- **Dictionary**: You can add your own words to a dictionary file which is
   used by all instances of proof (after they have started).
 - **Lightweight**: I have seen proof using at most 60 MB of memory after running for a while
   opening several different files.
+- **Smart**: Understand common casing styles:
+  - camelCase
+  - PascalCase
+  - kebab-case
+  - SCREAMING-KEBAB-CASE
+  - snake_case
+  - SCREAMING_SNAKE_CASE
+  - abbreviations: LSP (lsp is one word), LSPConfig (lsp and config are split)
+  - combination: PascalABBRSnake_kebab-case (pascal, abbr, snake, kebab, case)
 
 ## Installation
 
 Currently the only option you have is to clone the repo and build the binary
 
 ```sh
-git clone https://github.com/Skyppex//proof.git
+git clone https://github.com/Skyppex/proof.git
+# or if you have gh installed
+gh repo clone skyppex/proof
 ```
 
 Then you can build the binary using the go cli
@@ -47,60 +58,60 @@ local proof_path = "/path/to/proof.exe"
 local log_file = "/path/to/proof.log"
 
 if not configs.proof then
-    configs.proof = {
-        default_config = {
-            -- Optional log file path. If not set, proof will not log anything.
-            -- Use a log file for debugging issues or when contributing.
-            --cmd = { proof_exe },
-            cmd = { proof_exe, log_file },
+	configs.proof = {
+		default_config = {
+			-- Optional log file path. If not set, proof will not log anything.
+			-- Use a log file for debugging issues or when contributing.
+			--cmd = { proof_exe },
+			cmd = { proof_exe, log_file },
 
-            -- Use "*" for all filetypes and excludes in the settings or specify
-            -- only some filetypes here.
-            filetypes = { "*" },
+			-- Use "*" for all filetypes and excludes in the settings or specify
+			-- only some filetypes here.
+			filetypes = { "*" },
 
-            single_file_support = true,
+			single_file_support = true,
 
-            root_dir = lspconfig.util.find_git_ancestor,
+			root_dir = lspconfig.util.find_git_ancestor,
 
-            -- Make sure to let proof know about the LSP clients capabilities.
-            capabilities = capabilities,
-        },
-    }
+			-- Make sure to let proof know about the LSP clients capabilities.
+			capabilities = capabilities,
+		},
+	}
 end
 
 lspconfig.proof.setup({
-    settings = {
-        proof = {
-            -- Full path to a dictionary file on your system
-            dictionaryPath = string.gsub(vim.fn.stdpath("config") .. "/proof/dictionary.txt", "\\", "/"),
+	settings = {
+		proof = {
+			-- Full path to a dictionary file on your system
+			dictionaryPath = string.gsub(vim.fn.stdpath("config") .. "/proof/dictionary.txt", "\\", "/"),
 
-            -- max diff in bits between the "search word" and a "dictionary word".
-            -- i.e. one simple symbol replacement (problam => problem) is a two-bit difference.
-            -- Making this value too high will result in a hit to performance.
-            maxErrors = 2,
+			-- max diff in bits between the "search word" and a "dictionary word".
+			-- i.e. one simple symbol replacement (problam => problem) is a two-bit difference.
+			-- Making this value too high will result in a hit to performance.
+			maxErrors = 2,
 
-            -- Max number of suggestions to show when doing a code action.
-            -- The number of possible suggestions grows based on the maxErrors
-            -- value.
-            maxSuggestions = 5,
+			-- Max number of suggestions to show when doing a code action.
+			-- The number of possible suggestions grows based on the maxErrors
+			-- value.
+			maxSuggestions = 5,
 
-            -- If true, words which end with 's' will be valid even if the
-            -- dictionary only contains the word without the 's' at the end.
-            -- The same is true for 'es' words.
-            allowImplicitPlurals = true,
+			-- If true, words which end with 's' will be valid even if the
+			-- dictionary only contains the word without the 's' at the end.
+			-- The same is true for 'es' words.
+			allowImplicitPlurals = true,
 
-            -- You can also choose to feed some words to the spell checker here.
-            ignoredWords = {},
+			-- You can also choose to feed some words to the spell checker here.
+			ignoredWords = {},
 
-            -- A list of regex patterns used to exclude files from being spell checked
-            excludedFilePatterns = {},
+			-- A list of regex patterns used to exclude files from being spell checked
+			excludedFilePatterns = {},
 
-            -- File types which should be excluded from spell checking.
-            -- This uses neovim's `&filetype` variable. Or more specifically the
-            -- languageId sent to proof by the LSP client.
-            excludedFileTypes = {},
-        },
-    },
+			-- File types which should be excluded from spell checking.
+			-- This uses neovim's `&filetype` variable. Or more specifically the
+			-- languageId sent to proof by the LSP client.
+			excludedFileTypes = {},
+		},
+	},
 })
 ```
 
