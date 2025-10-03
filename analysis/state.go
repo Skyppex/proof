@@ -191,13 +191,11 @@ func (s *State) Diagnostic(uri string, logger *log.Logger) ([]lsp.Diagnostic, bo
 
 	return diagnostics, true
 }
-
 func (s *State) CodeAction(request lsp.CodeActionRequest, uri string, logger *log.Logger) lsp.CodeActionResponse {
 	params := request.Params
 	rng := params.Range
 
 	if rng.Start.Line != rng.End.Line {
-		logger.Print("3")
 		return lsp.CodeActionResponse{
 			Response: lsp.CreateResponse(request.ID),
 			Result:   []lsp.CodeAction{},
@@ -473,7 +471,7 @@ func growRange(text string, rng lsp.Range) lsp.Range {
 	}
 
 	for end.Character < len(text) {
-		if !unicode.IsLetter(rune(text[end.Character+1])) {
+		if end.Character+1 >= len(text) || !unicode.IsLetter(rune(text[end.Character+1])) {
 			break
 		}
 
