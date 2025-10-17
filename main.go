@@ -116,7 +116,7 @@ func handleMessage(
 			request.Params.ClientInfo.Version)
 
 		msg := lsp.NewInitializeResponse(request.ID)
-		writeResponse(writer, msg)
+		writeResponse(writer, msg, logger)
 
 		logger.Print("Sent initialize response")
 
@@ -135,7 +135,7 @@ func handleMessage(
 		logger.Print("Shutting down")
 
 		msg := lsp.NewShutdownResponse(request.ID)
-		writeResponse(writer, msg)
+		writeResponse(writer, msg, logger)
 		return false, true
 
 	case "exit":
@@ -171,7 +171,7 @@ func handleMessage(
 
 		if uri != "" {
 			msg := lsp.NewPublishDiagnosticsNotification(uri, diagnostics)
-			writeResponse(writer, msg)
+			writeResponse(writer, msg, logger)
 
 			logger.Print("executeCommand sent diagnostics")
 		}
@@ -191,7 +191,7 @@ func handleMessage(
 
 		if diagnosticsDiffer {
 			msg := lsp.NewPublishDiagnosticsNotification(request.Params.TextDocument.URI, diagnostics)
-			writeResponse(writer, msg)
+			writeResponse(writer, msg, logger)
 			logger.Print("didOpen sent diagnostics")
 		}
 
@@ -211,7 +211,7 @@ func handleMessage(
 
 			if diagnosticsDiffer {
 				msg := lsp.NewPublishDiagnosticsNotification(request.Params.TextDocument.URI, diagnostics)
-				writeResponse(writer, msg)
+				writeResponse(writer, msg, logger)
 				logger.Print("didChange sent diagnostics")
 			}
 		}
@@ -255,7 +255,7 @@ func handleMessage(
 
 		logger.Printf("Code action response: %v", response)
 
-		writeResponse(writer, response)
+		writeResponse(writer, response, logger)
 
 	default:
 		logger.Printf("Unhandled method: %s", method)
@@ -286,7 +286,11 @@ func getLogger(args []string) *log.Logger {
 	return log.New(log_file, "[proof]", log.Ldate|log.Ltime|log.Lshortfile)
 }
 
-func writeResponse(writer io.Writer, msg any) {
+func writeResponse(writer io.Writer, msg any, logger *log.Logger) {
 	reply := rpc.EncodeMessage(msg)
-	writer.Write([]byte(reply))
+	_, err := writer.Write([]byte(reply))
+
+	if err != nil {
+		logger.Printf("Failed to write response: %v", msg)
+	}
 }
