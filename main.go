@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,6 +15,9 @@ import (
 
 	"github.com/f1monkey/spellchecker"
 )
+
+//go:embed word-list.txt
+var word_list string
 
 func main() {
 	args := os.Args
@@ -49,9 +53,12 @@ LOG_FILE: Optionally specify a file to log to
 		panic(err)
 	}
 
-	word_list := analysis.WordList
 	reader := strings.NewReader(word_list)
-	sc.AddFrom(reader)
+	sc_err := sc.AddFrom(reader)
+
+	if err != nil {
+		panic(sc_err)
+	}
 
 	state := analysis.NewState(sc)
 	writer := os.Stdout

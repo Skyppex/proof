@@ -1,6 +1,3 @@
-package analysis
-
-const WordList = `
 a
 aa
 aaa
@@ -370581,4 +370578,3 @@ zzz
 ø
 øø
 øøø
-`
