@@ -26,7 +26,7 @@ func DecodeMessage(msg []byte) (string, []byte, error) {
 	header, content, found := bytes.Cut(msg, []byte{'\r', '\n', '\r', '\n'})
 
 	if !found {
-		return "", nil, errors.New("Did not find eparator")
+		return "", nil, errors.New("did not find separator")
 	}
 
 	contentLengthBytes := header[len("Content-Length: "):]

@@ -56,7 +56,7 @@ LOG_FILE: Optionally specify a file to log to
 	reader := strings.NewReader(word_list)
 	sc_err := sc.AddFrom(reader)
 
-	if err != nil {
+	if sc_err != nil {
 		panic(sc_err)
 	}
 

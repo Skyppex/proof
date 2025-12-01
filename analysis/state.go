@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"proof/lsp"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -521,16 +522,6 @@ func ensureDir(filePath string) error {
 	return os.MkdirAll(dir, 0755)
 }
 
-func contains[T comparable](list []T, item T) bool {
-	for _, i := range list {
-		if i == item {
-			return true
-		}
-	}
-
-	return false
-}
-
 func sliceEqual[T comparable](a, b []T) bool {
 	if len(a) != len(b) {
 		return false
@@ -558,5 +549,5 @@ func (data documentData) isExcluded(s *State, logger *log.Logger) bool {
 		}
 	}
 
-	return contains(s.ExcludedFileTypes, data.LanguageID)
+	return slices.Contains(s.ExcludedFileTypes, data.LanguageID)
 }
