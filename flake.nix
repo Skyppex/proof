@@ -30,7 +30,7 @@
           gopls
           golangci-lint
           alejandra
-          nil
+          nixd
         ];
       };
     });
