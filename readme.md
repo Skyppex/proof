@@ -30,7 +30,7 @@ with some additions for developer specific words, abbreviations and tools.
 
 ## Installation
 
-Currently the only option you have is to clone the repo and build the binary
+### Building from source
 
 ```sh
 git clone https://github.com/Skyppex/proof.git
@@ -43,6 +43,12 @@ Then you can build the binary using the go cli
 ```sh
 cd proof
 go build
+```
+
+### Nix profile
+
+```sh
+nix profile add github:Skyppex/proof
 ```
 
 ## Configuration
