@@ -6,7 +6,7 @@ type Shutdown struct {
 
 type ShutdownResponse struct {
 	Response
-	Result *any `json:"result,omitempty"`
+	Result *any `json:"result"`
 }
 
 func NewShutdownResponse(id int) ShutdownResponse {
